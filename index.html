@@ -207,6 +207,7 @@ Released under the MIT license: http://jsbin.mit-license.org
                     <div class="form-group"><label>Match Type</label><select id="m-type"><option value="Solo">Solo</option><option value="Squad TDM">Squad TDM</option><option value="Squad Classic">Squad Classic</option></select></div>
                     <div class="form-group"><label>Entry Fee (₹)</label><input type="number" id="m-fee" placeholder="e.g. 10"></div>
                     <div class="form-group"><label>Total Prize Pool (₹)</label><input type="number" id="m-prize" placeholder="e.g. 500"></div>
+                    <div class="form-group"><label>Maximum Players</label><input type="number" id="m-max-players" placeholder="e.g. 100" min="1" step="1"></div>
                     <div class="form-group"><label>Match Time</label><input type="datetime-local" id="m-time"></div>
                     <div style="background:#0b0f19;padding:15px;border-radius:10px;border:1px solid #374151;margin:15px 0;">
                         <label style="color:#f59e0b;margin-bottom:10px;font-size:14px;">Set Reward Structure</label>
@@ -752,7 +753,6 @@ Released under the MIT license: http://jsbin.mit-license.org
             document.getElementById('admin-deposit-screen').style.display = screen === 'deposit' ? 'block' : 'none';
             document.getElementById('admin-withdraw-screen').style.display = screen === 'withdraw' ? 'block' : 'none';
             document.getElementById('admin-matches-screen').style.display = screen === 'matches' ? 'block' : 'none';
-            document.getElementById('admin-prizeVerification-screen').style.display = screen === 'prizeVerification' ? 'block' : 'none';
             if (screen === 'deposit') { showDepositTab('requests'); renderPendingUTRs(); renderAdminDepositHistory(); renderAdminCoupons(); loadAdminUPI(); }
             if (screen === 'withdraw') { showWithdrawTab('pending'); renderAdminWithdrawals(); renderWithdrawalHistory(); }
             if (screen === 'matches') { showMatchTab('create'); renderMemberTournaments(); renderMatchHistory(); }
@@ -1022,6 +1022,7 @@ Released under the MIT license: http://jsbin.mit-license.org
             let type = document.getElementById('m-type').value;
             let fee = Number(document.getElementById('m-fee').value);
             let prize = Number(document.getElementById('m-prize').value);
+            let maxPlayers = Number(document.getElementById('m-max-players').value);
             let timeVal = document.getElementById('m-time').value;
 
             let rew1 = Number(document.getElementById('rew-1').value) || 0;
@@ -1031,16 +1032,17 @@ Released under the MIT license: http://jsbin.mit-license.org
             let rew5 = Number(document.getElementById('rew-5').value) || 0;
             let rew6to10 = Number(document.getElementById('rew-6-10').value) || 0;
 
-            if (!name || isNaN(fee) || isNaN(prize) || !timeVal) { showModal("Please fill in basic tournament details!"); return; }
+            if (!name || isNaN(fee) || isNaN(prize) || !timeVal || !Number.isInteger(maxPlayers) || maxPlayers < 1) { showModal("Please fill in basic tournament details and a valid maximum player limit!"); return; }
 
             let rewardsStructure = { rew1, rew2, rew3, rew4, rew5, rew6to10 };
-            let newT = { name, type, fee, prize, time: new Date(timeVal).getTime(), roomId: "", roomPass: "", status: "Scheduled", rewards: rewardsStructure, winners: [] };
+            let newT = { name, type, fee, prize, maxPlayers, time: new Date(timeVal).getTime(), roomId: "", roomPass: "", status: "Scheduled", rewards: rewardsStructure, winners: [] };
 
             await db.collection("tournaments").add(newT);
             showModal("Tournament published online successfully!");
             document.getElementById('m-name').value = "";
             document.getElementById('m-fee').value = "";
             document.getElementById('m-prize').value = "";
+            document.getElementById('m-max-players').value = "";
             document.getElementById('m-time').value = "";
             document.getElementById('rew-1').value = "";
             document.getElementById('rew-2').value = "";
@@ -1512,11 +1514,14 @@ Released under the MIT license: http://jsbin.mit-license.org
                 let isFinished = t.status === "Finished";
                 let playerMatches = (currentLoggedInUser && currentLoggedInUser.role === 'player' && currentLoggedInUser.data) ? (currentLoggedInUser.data.matches || []) : [];
                 let hasJoined = playerMatches.some(m => String(m.id || m.tid || '') === String(t.id));
-                let actionBtn = isFinished ? `<button class="btn" style="background:#3b82f6; color:#fff; margin-top:0; padding:8px;" onclick="viewTournamentRewards('${t.id}')">Winners</button>` : (hasJoined ? `<div style="width:100%; padding:10px 8px; border-radius:8px; background:#10b98122; border:1px solid #10b981; color:#10b981; font-weight:800; text-align:center; font-size:13px;">✅ JOINED — ${isLive ? '🔴 Live' : '⏳ '+timeText}</div>` : (!isLive ? `<button class="btn" style="background:#10b981; color:#000; margin-top:0; padding:8px;" onclick="joinTournament('${t.id}', ${t.fee}, '${t.name.replace(/'/g, "\'")}')">Join</button>` : `<span style="color:#ef4444; font-weight:bold;">Live</span>`));
+                let joinedCount = Number(t.joinedCount || 0);
+                let maxPlayers = Number(t.maxPlayers || 0);
+                let isFull = maxPlayers > 0 && joinedCount >= maxPlayers;
+                let actionBtn = isFinished ? `<button class="btn" style="background:#3b82f6; color:#fff; margin-top:0; padding:8px;" onclick="viewTournamentRewards('${t.id}')">Winners</button>` : (hasJoined ? `<div style="width:100%; padding:10px 8px; border-radius:8px; background:#10b98122; border:1px solid #10b981; color:#10b981; font-weight:800; text-align:center; font-size:13px;">✅ JOINED — ${isLive ? '🔴 Live' : '⏳ '+timeText}</div>` : (isFull ? `<div style="width:100%; padding:10px 8px; border-radius:8px; background:#ef444422; border:1px solid #ef4444; color:#ef4444; font-weight:900; text-align:center; font-size:13px;">🚫 FULL — ${joinedCount}/${maxPlayers} Players</div>` : (!isLive ? `<button class="btn" style="background:#10b981; color:#000; margin-top:0; padding:8px;" onclick="joinTournament('${t.id}', ${t.fee}, '${t.name.replace(/'/g, "\'")}')">Join</button>` : `<span style="color:#ef4444; font-weight:bold;">Live</span>`)));
 
                 html += `<div style="background:#111827; border-radius:12px; margin-bottom:15px; padding:15px; border:1px solid #1f2937;">
                     <div style="color:#38bdf8; font-weight:bold;">Tournament #${index + 1} - ${t.name} (${t.type})</div>
-                    <div style="color:#f59e0b; margin:6px 0;">🏆 Prize Pool: ₹${t.prize} | 🎟️ Entry Fee: ₹${t.fee || 0} | Timer: ${timeText}</div>
+                    <div style="color:#f59e0b; margin:6px 0;">🏆 Prize Pool: ₹${t.prize} | 🎟️ Entry Fee: ₹${t.fee || 0} | 👥 Players: ${joinedCount}${maxPlayers > 0 ? '/'+maxPlayers : ''} | Timer: ${timeText}</div>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
                         <button class="btn" style="background:#f59e0b; color:#000; margin-top:0; padding:8px 12px; width:48%; font-size:13px;" onclick="viewTournamentRewards('${t.id}')">🎁 Rewards</button>
                         <div style="width:48%; text-align:right;">${actionBtn}</div>
@@ -1570,38 +1575,61 @@ Released under the MIT license: http://jsbin.mit-license.org
                 renderPlayerTournaments();
                 return;
             }
-            if (p.wallet >= fee) {
-                showCustomConfirm(`Join ${tName} for ₹${fee}?`, async function() {
-                    // Re-check after confirmation so the same player cannot join the same tournament twice.
-                    let latestSnap = await db.collection("players").doc(p.id).get();
-                    if (!latestSnap.exists) { showModal("Player account not found!"); return; }
-                    let latest = latestSnap.data();
-                    let latestMatches = latest.matches || [];
-                    if (latestMatches.some(m => String(m.id || m.tid || '') === String(tid))) {
-                        currentLoggedInUser.data = latest;
-                        updatePlayerUI();
-                        renderPlayerTournaments();
-                        showModal("You have already joined this tournament!");
-                        return;
-                    }
-                    if (Number(latest.wallet || 0) < Number(fee || 0)) {
-                        currentLoggedInUser.data = latest;
-                        updatePlayerUI();
-                        showModal("Insufficient wallet balance!");
-                        switchPlayerTab(2);
-                        return;
-                    }
-                    let tournament = tournaments.find(x => x.id === tid);
-                    if (!tournament) { showModal("Tournament not found!"); return; }
-                    latest.wallet = Number(latest.wallet || 0) - Number(fee || 0);
-                    latestMatches.push(tournament);
-                    await db.collection("players").doc(p.id).update({ wallet: latest.wallet, matches: latestMatches });
-                    currentLoggedInUser.data = latest;
+            if (p.wallet < fee) { showModal("Insufficient wallet balance!"); switchPlayerTab(2); return; }
+
+            showCustomConfirm(`Join ${tName} for ₹${fee}?`, async function() {
+                try {
+                    const result = await db.runTransaction(async function(transaction) {
+                        const playerRef = db.collection("players").doc(p.id);
+                        const tournamentRef = db.collection("tournaments").doc(tid);
+                        const playerSnap = await transaction.get(playerRef);
+                        const tournamentSnap = await transaction.get(tournamentRef);
+                        if (!playerSnap.exists) throw new Error("PLAYER_NOT_FOUND");
+                        if (!tournamentSnap.exists) throw new Error("TOURNAMENT_NOT_FOUND");
+
+                        const latest = playerSnap.data();
+                        const latestMatches = latest.matches || [];
+                        if (latestMatches.some(m => String(m.id || m.tid || '') === String(tid))) throw new Error("ALREADY_JOINED");
+                        if (Number(latest.wallet || 0) < Number(fee || 0)) throw new Error("INSUFFICIENT_BALANCE");
+
+                        const tournament = { id: tournamentSnap.id, ...tournamentSnap.data() };
+                        const maxPlayers = Number(tournament.maxPlayers || 0);
+                        const joinedCount = Number(tournament.joinedCount || 0);
+                        if (maxPlayers > 0 && joinedCount >= maxPlayers) throw new Error("TOURNAMENT_FULL");
+
+                        latestMatches.push(tournament);
+                        const newWallet = Number(latest.wallet || 0) - Number(fee || 0);
+                        transaction.update(playerRef, { wallet: newWallet, matches: latestMatches });
+                        transaction.update(tournamentRef, { joinedCount: joinedCount + 1 });
+                        return { latest, newWallet, tournament, newJoinedCount: joinedCount + 1 };
+                    });
+
+                    result.latest.wallet = result.newWallet;
+                    result.latest.matches = result.latest.matches || [];
+                    currentLoggedInUser.data = result.latest;
                     updatePlayerUI();
                     renderPlayerTournaments();
                     showModal("Registered successfully!");
-                });
-            } else { showModal("Insufficient wallet balance!"); switchPlayerTab(2); }
+                } catch (err) {
+                    if (err && err.message === "TOURNAMENT_FULL") {
+                        renderPlayerTournaments();
+                        showModal("This tournament is full!");
+                    } else if (err && err.message === "ALREADY_JOINED") {
+                        showModal("You have already joined this tournament!");
+                        renderPlayerTournaments();
+                    } else if (err && err.message === "INSUFFICIENT_BALANCE") {
+                        showModal("Insufficient wallet balance!");
+                        switchPlayerTab(2);
+                    } else if (err && err.message === "PLAYER_NOT_FOUND") {
+                        showModal("Player account not found!");
+                    } else if (err && err.message === "TOURNAMENT_NOT_FOUND") {
+                        showModal("Tournament not found!");
+                    } else {
+                        console.error(err);
+                        showModal("Could not join tournament. Please try again.");
+                    }
+                }
+            });
         }
 
         function renderMyMatches() {
