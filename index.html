@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<!--
+Created using JS Bin
+http://jsbin.com
+
+Copyright (c) 2026 by anonymous (http://jsbin.com/birilejibo/2/edit)
+
+Released under the MIT license: http://jsbin.mit-license.org
+-->
+<meta name="robots" content="noindex">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BGMI Tournament Manager</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: linear-gradient(135deg, #090d16 0%, #111827 100%); color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+        .page { display: none; width: 100%; }
+        .page.active { display: block; }
+        header { width: 100%; background: rgba(17, 24, 39, 0.9); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(245, 158, 11, 0.2); position: sticky; top: 0; z-index: 50; }
+        .logo { font-size: 18px; font-weight: 900; color: #f59e0b; text-transform: uppercase; }
+        .wallet-badge { background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; padding: 6px 12px; border-radius: 20px; color: #10b981; font-weight: bold; font-size: 14px; cursor: pointer; }
+        #auth-screen.page.active { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .login-card { max-width: 420px; width: 100%; background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(16px); padding: 35px; border-radius: 20px; border: 1px solid rgba(245, 158, 11, 0.3); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); }
+        .login-logo-area { text-align: center; margin-bottom: 25px; }
+        .login-logo-icon { font-size: 40px; margin-bottom: 8px; display: inline-block; }
+        h2 { color: #f59e0b; text-align: center; font-size: 26px; font-weight: 900; text-transform: uppercase; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 8px; font-weight: 700; text-transform: uppercase; }
+        input, select { width: 100%; padding: 14px 16px; background: rgba(11, 15, 25, 0.8); border: 1px solid #374151; color: #fff; border-radius: 10px; font-size: 15px; }
+        input:focus, select:focus { outline: none; border-color: #f59e0b; background: rgba(11, 15, 25, 1); }
+        .btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; border: none; border-radius: 10px; font-weight: 800; font-size: 16px; cursor: pointer; margin-top: 10px; text-transform: uppercase; }
+        .switch-auth { text-align: center; margin-top: 22px; font-size: 14px; color: #38bdf8; cursor: pointer; font-weight: 600; }
+        .section-title { font-size: 16px; font-weight: 800; color: #f59e0b; margin: 20px 0 12px 0; text-transform: uppercase; }
+        .amt-btn { background: #1f2937; border: 1px solid #374151; color: #fff; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .amt-btn.selected { background: #f59e0b; color: #000; border-color: #f59e0b; }
+        .history-row.success { border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.05); }
+    </style>
+</head>
+<body>
+
+    <div id="auth-screen" class="page active">
+        <div class="login-card">
+            <div class="login-logo-area">
+                <span class="login-logo-icon">⚡</span>
+                <h2 id="auth-title">BGMI Arena</h2>
+                <p style="color: #9ca3af; font-size: 13px; margin-top: 5px;">Tournament Manager Portal</p>
+            </div>
+
+            <div id="login-form">
+                <div class="form-group"><label>User ID / BGMI UID</label><input type="text" id="login-id" placeholder="Enter User ID or BGMI UID"></div>
+                <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="Enter Password"></div>
+                <button class="btn" onclick="handleLogin()">Login to Account</button>
+                <div class="switch-auth" onclick="showForgotPassword()">Forgot Password?</div>
+                <div class="switch-auth" onclick="toggleAuthMode(true)">Create New Player Account (Sign Up)</div>
+            </div>
+
+            <div id="signup-form" style="display: none;">
+                <div class="form-group"><label>Your Name</label><input type="text" id="su-name" placeholder="Enter Name"></div>
+                <div class="form-group"><label>BGMI UID (Compulsory)</label><input type="text" id="su-uid" placeholder="Enter your real BGMI UID"></div>
+                <div class="form-group"><label>Password</label><input type="password" id="su-pass" placeholder="Create a password"></div>
+                <div class="form-group"><label>Date of Birth</label><input type="date" id="su-dob"></div>
+                <button class="btn" onclick="handleSignup()">Register Account</button>
+                <div class="switch-auth" onclick="toggleAuthMode(false)">Already have an account? Login</div>
+            </div>
+
+            <div id="forgot-password-form" style="display: none;">
+                <div class="form-group"><label>User ID / BGMI UID</label><input type="text" id="fp-id" placeholder="Enter your User ID / BGMI UID"></div>
+                <div class="form-group"><label>Date of Birth</label><input type="date" id="fp-dob"></div>
+                <button class="btn" onclick="verifyForgotPassword()">Verify & Continue</button>
+                <div id="reset-password-fields" style="display:none;">
+                    <div class="form-group"><label>New Password</label><input type="password" id="fp-new-pass" placeholder="Enter new password"></div>
+                    <div class="form-group"><label>Confirm New Password</label><input type="password" id="fp-confirm-pass" placeholder="Confirm new password"></div>
+                    <button class="btn" onclick="resetPlayerPassword()">Reset Password</button>
+                </div>
+                <div class="switch-auth" onclick="toggleAuthMode(false)">← Back to Login</div>
+            </div>
+        </div>
+    </div>
+    <!-- Member / Admin Panel (Kartik) -->
+    <div id="member-panel" class="page">
+        <header>
+            <div class="logo">🛠️ ADMIN PANEL</div>
+            <button class="btn" style="width:auto;padding:6px 14px;margin:0;background:#ef4444;color:#fff;font-size:13px;" onclick="logout()">Logout</button>
+        </header>
+
+        <!-- Admin Home -->
+        <div id="admin-home-screen" style="padding:18px 15px 90px;max-width:600px;margin:0 auto;">
+            <div class="section-title">Admin Dashboard</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <button class="btn" style="background:#38bdf8;color:#000;margin:0;min-height:95px;" onclick="showAdminScreen('deposit')">💰<br>Deposit</button>
+                <button class="btn" style="background:#a855f7;color:#fff;margin:0;min-height:95px;" onclick="showAdminScreen('withdraw')">💸<br>Withdrawal</button>
+                <button class="btn" style="background:#10b981;color:#fff;margin:0;min-height:95px;" onclick="showAdminScreen('matches')">🎮<br>Matches</button>
+                <button class="btn" style="background:#f97316;color:#fff;margin:0;min-height:95px;" onclick="showAdminScreen('prizeVerification')">🏆<br>Prize Verification</button>
+            </div>
+        </div>
+
+        <!-- Deposit Admin Screen -->
+        <div id="admin-deposit-screen" class="admin-subscreen" style="display:none;padding:18px 15px 90px;max-width:600px;margin:0 auto;">
+            <button class="btn" style="background:#1f2937;color:#fff;margin:0 0 15px;" onclick="showAdminScreen('home')">← Back to Dashboard</button>
+            <div class="section-title">Deposit Management</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;">
+                <button class="btn" style="background:#f59e0b;color:#000;margin:0;" onclick="showDepositTab('requests')">📥 Deposit Requests</button>
+                <button class="btn" style="background:#38bdf8;color:#000;margin:0;" onclick="showDepositTab('history')">📜 Deposit History</button>
+                <button class="btn" style="background:#10b981;color:#fff;margin:0;" onclick="showDepositTab('promo')">🎟️ Promo Codes</button>
+                <button class="btn" style="background:#8b5cf6;color:#fff;margin:0;" onclick="showDepositTab('redeem')">🎁 Redeem Codes</button>
+                <button class="btn" style="background:#0ea5e9;color:#fff;margin:0;" onclick="showDepositTab('upi')">🔗 UPI ID</button>
+                <button class="btn" style="background:#25D366;color:#fff;margin:0;" onclick="showDepositTab('support')">📱 Support Settings</button>
+            </div>
+
+            <div id="deposit-requests-tab" class="admin-tab">
+                <div class="section-title">Pending Deposit Requests</div>
+                <div id="pending-utr-list"><p style="color:#9ca3af;font-size:14px;">No pending deposit requests.</p></div>
+            </div>
+
+            <div id="deposit-history-tab" class="admin-tab" style="display:none;">
+                <div class="section-title">Deposit History</div>
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <button class="btn" style="background:#ef4444;color:#fff;margin:0;flex:1;" onclick="deleteAllAdminHistory('deposit')">🗑️ Delete All Deposit History</button>
+                </div>
+                <div id="admin-deposit-history-list"><p style="color:#9ca3af;text-align:center;">No deposit history.</p></div>
+            </div>
+
+            <div id="deposit-promo-tab" class="admin-tab" style="display:none;">
+                <div class="section-title">Manage Promotion Coupon Codes</div>
+                <div style="background:#111827;padding:20px;border-radius:12px;border:1px solid #1f2937;">
+                    <div class="form-group"><label>Coupon Code</label><input type="text" id="admin-coupon-code" placeholder="e.g. BGMI50"></div>
+                    <div class="form-group"><label>Bonus Percentage (%)</label><input type="number" id="admin-coupon-bonus" placeholder="e.g. 10" min="0" step="0.01"></div>
+                    <button class="btn" style="background:#f59e0b;color:#000;" onclick="createCouponCode()">Save / Create Coupon</button>
+                    <div style="margin-top:15px;"><label style="color:#38bdf8;margin-bottom:8px;">Active Coupons List:</label><div id="admin-coupons-list"><p style="color:#9ca3af;font-size:13px;">No active coupons.</p></div></div>
+                </div>
+            </div>
+
+            <div id="deposit-redeem-tab" class="admin-tab" style="display:none;">
+                <div class="section-title">Redeem Codes</div>
+                <div style="background:#111827;padding:20px;border-radius:12px;border:1px solid #1f2937;">
+                    <div class="form-group"><label>Redeem Code</label><input type="text" id="admin-redeem-code" placeholder="e.g. BGMI50"></div>
+                    <div class="form-group"><label>Wallet Amount (₹)</label><input type="number" id="admin-redeem-amount" placeholder="e.g. 50"></div>
+                    <button class="btn" style="background:#8b5cf6;color:#fff;" onclick="createRedeemCode()">Create Redeem Code</button>
+                    <div style="margin-top:15px;"><label style="color:#38bdf8;margin-bottom:8px;">Active Redeem Codes:</label><div id="admin-redeem-list"><p style="color:#9ca3af;font-size:13px;">No redeem codes.</p></div></div>
+                </div>
+            </div>
+
+            <div id="deposit-support-tab" class="admin-tab" style="display:none;">
+                <div class="section-title">Support & Redeem Settings</div>
+                <div style="background:#111827;padding:20px;border-radius:12px;border:1px solid #1f2937;">
+                    <div class="form-group"><label>WhatsApp Channel Link</label><input type="text" id="admin-whatsapp-link" placeholder="https://whatsapp.com/channel/..." value="https://whatsapp.com/channel/0029VbCvIZT05MUm4QylQX2Q"></div>
+                    <button class="btn" style="background:#25D366;color:#fff;" onclick="saveSupportSettings()">Save Support Link</button>
+                    <p id="admin-support-current" style="color:#38bdf8;font-size:13px;margin-top:12px;">WhatsApp Channel: Not set</p>
+                </div>
+            </div>
+
+            <div id="deposit-upi-tab" class="admin-tab" style="display:none;">
+                <div class="section-title">Player Deposit UPI ID</div>
+                <div style="background:#111827;padding:20px;border-radius:12px;border:1px solid #1f2937;">
+                    <p style="color:#9ca3af;font-size:13px;margin-bottom:12px;">यह UPI ID player के payment screen पर दिखाई जाएगी।</p>
+                    <div class="form-group"><label>UPI ID</label><input type="text" id="admin-upi-id" placeholder="example@upi"></div>
+                    <button class="btn" style="background:#10b981;color:#fff;" onclick="saveAdminUPI()">Save / Update UPI ID</button>
+                    <p id="admin-upi-current" style="color:#38bdf8;font-size:13px;margin-top:12px;">Current UPI: Not set</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Withdrawal Admin Screen -->
+        <div id="admin-withdraw-screen" class="admin-subscreen" style="display:none;padding:18px 15px 90px;max-width:600px;margin:0 auto;">
+            <button class="btn" style="background:#1f2937;color:#fff;margin:0 0 15px;" onclick="showAdminScreen('home')">← Back to Dashboard</button>
+            <div class="section-title">Withdrawal Management</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;">
+                <button class="btn" style="background:#f59e0b;color:#000;margin:0;" onclick="showWithdrawTab('pending')">⏳ Pending</button>
+                <button class="btn" style="background:#10b981;color:#fff;margin:0;" onclick="showWithdrawTab('requests')">📥 Requests</button>
+                <button class="btn" style="background:#38bdf8;color:#000;margin:0;" onclick="showWithdrawTab('history')">📜 History</button>
+            </div>
+            <div id="withdraw-pending-tab" class="admin-tab">
+                <div class="section-title">Pending Withdrawals</div>
+                <div id="admin-withdraw-pending-list"><p style="color:#9ca3af;text-align:center;">No pending withdrawals.</p></div>
+            </div>
+            <div id="withdraw-requests-tab" class="admin-tab" style="display:none;">
+                <div class="section-title">Withdrawal Requests</div>
+                <div id="admin-withdraw-requests-list"><p style="color:#9ca3af;text-align:center;">No withdrawal requests.</p></div>
+            </div>
+            <div id="withdraw-history-tab" class="admin-tab" style="display:none;">
+                <div class="section-title">Withdrawal History</div>
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <button class="btn" style="background:#ef4444;color:#fff;margin:0;flex:1;" onclick="deleteAllAdminHistory('withdraw')">🗑️ Delete All Withdrawal History</button>
+                </div>
+                <div id="admin-withdraw-history-list"><p style="color:#9ca3af;text-align:center;">No withdrawal history.</p></div>
+            </div>
+        </div>
+
+        <!-- Matches Admin Screen -->
+        <div id="admin-matches-screen" class="admin-subscreen" style="display:none;padding:18px 15px 90px;max-width:600px;margin:0 auto;">
+            <button class="btn" style="background:#1f2937;color:#fff;margin:0 0 15px;" onclick="showAdminScreen('home')">← Back to Dashboard</button>
+            <div class="section-title">Match Management</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;">
+                <button class="btn" style="background:#f59e0b;color:#000;margin:0;" onclick="showMatchTab('create')">➕ Create Match</button>
+                <button class="btn" style="background:#10b981;color:#fff;margin:0;" onclick="showMatchTab('start')">▶️ Start Match</button>
+                <button class="btn" style="background:#38bdf8;color:#000;margin:0;" onclick="showMatchTab('history')">📜 Match History</button>
+            </div>
+
+            <div id="match-create-tab" class="admin-tab">
+                <div class="section-title">Create New Match</div>
+                <div style="background:#111827;padding:20px;border-radius:12px;border:1px solid #1f2937;">
+                    <div class="form-group"><label>Match / Map Name</label><input type="text" id="m-name" placeholder="e.g. Erangel Solo"></div>
+                    <div class="form-group"><label>Match Type</label><select id="m-type"><option value="Solo">Solo</option><option value="Squad TDM">Squad TDM</option><option value="Squad Classic">Squad Classic</option></select></div>
+                    <div class="form-group"><label>Entry Fee (₹)</label><input type="number" id="m-fee" placeholder="e.g. 10"></div>
+                    <div class="form-group"><label>Total Prize Pool (₹)</label><input type="number" id="m-prize" placeholder="e.g. 500"></div>
+                    <div class="form-group"><label>Maximum Players</label><input type="number" id="m-max-players" placeholder="e.g. 100" min="1" step="1"></div>
+                    <div class="form-group"><label>Match Time</label><input type="datetime-local" id="m-time"></div>
+                    <div style="background:#0b0f19;padding:15px;border-radius:10px;border:1px solid #374151;margin:15px 0;">
+                        <label style="color:#f59e0b;margin-bottom:10px;font-size:14px;">Set Reward Structure</label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">1st Place (₹)</label><input type="number" id="rew-1" placeholder="0"></div>
+                            <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">2nd Place (₹)</label><input type="number" id="rew-2" placeholder="0"></div>
+                            <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">3rd Place (₹)</label><input type="number" id="rew-3" placeholder="0"></div>
+                            <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">4th Place (₹)</label><input type="number" id="rew-4" placeholder="0"></div>
+                            <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">5th Place (₹)</label><input type="number" id="rew-5" placeholder="0"></div>
+                            <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">6th-10th Place (₹ Each)</label><input type="number" id="rew-6-10" placeholder="0"></div>
+                        </div>
+                    </div>
+                    <button class="btn" onclick="createTournament()">Create Match</button>
+                </div>
+            </div>
+
+            <div id="match-start-tab" class="admin-tab" style="display:none;">
+                <div class="section-title">Start / Control Match</div>
+                <div id="member-tournaments-list"><p style="color:#9ca3af;font-size:14px;">No matches available.</p></div>
+            </div>
+
+            <div id="match-history-tab" class="admin-tab" style="display:none;">
+                <div class="section-title">Finished Match History</div>
+                <p style="color:#9ca3af;font-size:12px;margin:-4px 0 12px;">Deleting a match here removes it only from the players' Home screen. It will remain in the Matches section and in this history.</p>
+                <div id="admin-match-history-list"><p style="color:#9ca3af;text-align:center;">No finished matches.</p></div>
+            </div>
+        </div>
+    </div>
+    <!-- Prize Verification Admin Screen -->
+    <div id="admin-prizeVerification-screen" class="admin-subscreen" style="display:none;padding:18px 15px 90px;max-width:600px;margin:0 auto;">
+      <button class="btn" style="background:#1f2937;color:#fff;margin:0 0 15px;" onclick="showAdminScreen('home')">← Back to Dashboard</button>
+      <div class="section-title">🏆 Prize Verification</div>
+      <div id="prize-checking-list"><p style="color:#9ca3af;text-align:center;">Loading...</p></div>
+    </div>
+
+    <!-- Player Application Panel -->
+    <div id="player-app" class="page">
+        <header>
+            <div class="logo">⚡ BGMI Arena</div>
+            <div class="header-right">
+                <div class="wallet-badge" onclick="switchPlayerTab(2)">₹ <span id="header-balance">0</span></div>
+            </div>
+        </header>
+
+        <!-- Tab 0: Home -->
+        <div id="ptab-0" class="player-tab active" style="padding: 15px; padding-bottom: 90px; max-width: 600px; margin: 0 auto;">
+            <div class="section-title">Live and Upcoming Tournaments</div>
+            <div id="player-tournaments-list"><p style="color: #9ca3af; text-align: center; margin-top: 30px;">No tournaments available.</p></div>
+        </div>
+
+        <!-- Tab 1: Matches -->
+        <div id="ptab-1" class="player-tab" style="display: none; padding: 15px; padding-bottom: 90px; max-width: 600px; margin: 0 auto;">
+            <div class="section-title">My Registered Matches</div>
+            <div id="my-matches-list"><p style="color: #9ca3af; text-align: center; margin-top: 30px;">You haven't joined any matches yet.</p></div>
+        </div>
+
+        <!-- Tab 2: Wallet -->
+        <div id="ptab-2" class="player-tab" style="display: none; padding: 15px; padding-bottom: 90px; max-width: 600px; margin: 0 auto;">
+            <div style="background: #111827; padding: 22px; border-radius: 16px; border: 1px solid #1f2937;">
+                <p style="color: #9ca3af;">Total Wallet Balance</p>
+                <div style="font-size: 34px; color: #10b981; font-weight: 900; margin: 10px 0;">₹ <span id="wallet-balance-num">0</span></div>
+                <hr style="border: 0; border-top: 1px solid #1f2937; margin: 15px 0;">
+                
+                <button class="btn" style="background: #38bdf8; color: #000; margin-bottom: 10px;" onclick="openHistoryScreen()">📜 View Transaction History</button>
+                <button class="btn" style="background: #8b5cf6; color: #fff; margin-bottom: 10px;" onclick="openRedeemCode()">🎁 Redeem Code</button>
+                <button class="btn" style="background: #25D366; color: #fff; margin-bottom: 10px;" onclick="joinWhatsAppChannel()">📱 Join WhatsApp Channel for Redeem Code</button>
+                <button class="btn" style="background: #f59e0b; color: #000; margin-bottom: 10px;" onclick="openWithdrawScreen()">💸 Withdraw Money</button>
+                <button class="btn" style="background: #10b981; color: #fff; margin-bottom: 15px;" onclick="toggleDepositPanel()">💰 Deposit Money</button>
+
+                <div id="deposit-panel" style="display:none; background:#0b0f19; padding:16px; border-radius:12px; border:1px solid #374151;">
+                    <p style="color: #f59e0b; font-weight: bold; margin-bottom: 12px;">Deposit Money</p>
+                    <label style="font-size: 13px;">Select Amount:</label>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0;">
+                        <button class="amt-btn" onclick="selectAmount(10, this)">₹10</button>
+                        <button class="amt-btn" onclick="selectAmount(20, this)">₹20</button>
+                        <button class="amt-btn" onclick="selectAmount(50, this)">₹50</button>
+                        <button class="amt-btn" onclick="selectAmount(100, this)">₹100</button>
+                        <button class="amt-btn" onclick="selectAmount(500, this)">₹500</button>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label>Enter Promo / Coupon Code (Optional)</label>
+                        <input type="text" id="player-coupon-input" placeholder="Enter promo code">
+                    </div>
+
+                    <div id="pay-btn-box" style="display: none; margin-top: 15px;">
+                        <button class="btn" style="background: #10b981; color:#fff;" onclick="openPaymentScreen()">Continue to Pay ₹<span id="btn-amt-val">0</span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Profile -->
+        <div id="ptab-3" class="player-tab" style="display: none; padding: 15px; padding-bottom: 90px; max-width: 600px; margin: 0 auto;">
+            <div style="background: #111827; padding: 22px; border-radius: 16px; border: 1px solid #1f2937; text-align: left;">
+                <h3 style="color: #f59e0b; margin-bottom: 10px;" id="profile-name-txt">Player Name</h3>
+                <p style="color: #9ca3af; margin-bottom: 5px;">BGMI UID: <b id="profile-uid-txt" style="color:#fff;">12345</b></p>
+                <p style="color: #10b981; margin-top: 10px; margin-bottom: 16px;"><b>Status:</b> Active Player</p>
+
+                <div style="background:#2a1700;border:1px solid #f59e0b55;padding:12px;border-radius:10px;margin-bottom:12px;">
+                    <p style="margin:0;color:#fbbf24;font-size:12px;line-height:1.55;"><b>NOTE:</b> A victory celebration screenshot is mandatory immediately after winning a match. If you do not provide the screenshot, you will not be eligible to receive the prize.</p>
+                </div>
+
+                <button class="btn" style="background:#25D366;color:#fff;margin-bottom:12px;" onclick="joinWhatsAppChannel()">📱 Join our WhatsApp Channel</button>
+                <p style="color:#9ca3af;font-size:12px;text-align:center;margin:-4px 0 14px;">Join our WhatsApp channel for upcoming matches notifications.</p>
+
+                <div class="section-title" style="margin-top:8px;">Settings</div>
+                <button class="btn" style="background:#229ED9;color:#fff;" onclick="openTelegramSupport()">📞 24×7 Support — Telegram Channel</button>
+                <button class="btn" style="background: #ef4444; color: white;" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <!-- Unique Bottom Navigation Bar -->
+        <nav style="position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 450px; background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(12px); display: flex; justify-content: space-around; padding: 10px 8px; border-radius: 40px; border: 1px solid rgba(245, 158, 11, 0.2); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); z-index: 100;">
+            <div class="nav-item active" onclick="switchPlayerTab(0)" style="display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #9ca3af; cursor: pointer; padding: 8px 14px; border-radius: 30px; font-weight: 600;">
+                <span style="font-size: 18px; margin-bottom: 3px;">🏠</span>
+                <span>Home</span>
+            </div>
+            <div class="nav-item" onclick="switchPlayerTab(1)" style="display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #9ca3af; cursor: pointer; padding: 8px 14px; border-radius: 30px; font-weight: 600;">
+                <span style="font-size: 18px; margin-bottom: 3px;">🎮</span>
+                <span>Matches</span>
+            </div>
+            <div class="nav-item" onclick="switchPlayerTab(2)" style="display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #9ca3af; cursor: pointer; padding: 8px 14px; border-radius: 30px; font-weight: 600;">
+                <span style="font-size: 18px; margin-bottom: 3px;">💰</span>
+                <span>Wallet</span>
+            </div>
+            <div class="nav-item" onclick="switchPlayerTab(3)" style="display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #9ca3af; cursor: pointer; padding: 8px 14px; border-radius: 30px; font-weight: 600;">
+                <span style="font-size: 18px; margin-bottom: 3px;">👤</span>
+                <span>Profile</span>
+            </div>
+        </nav>
+    </div>
+    <!-- Payment / Deposit Gateway Screen -->
+    <div id="pay-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #090d16; z-index: 200; padding: 20px; overflow-y: auto;">
+        <div style="max-width: 400px; margin: 30px auto; background: #111827; padding: 22px; border-radius: 16px; border: 1px solid #1f2937;">
+            <h3 style="color: #f59e0b; margin-bottom: 15px; text-align: center;">Payment Gateway</h3>
+            <p style="font-size: 14px; color: #9ca3af; margin-bottom: 5px;">Base Amount: <b style="color: #10b981; font-size: 18px;">₹<span id="screen-amt">0</span></b></p>
+            <p id="coupon-applied-txt" style="font-size: 13px; color: #38bdf8; margin-bottom: 10px; display: none;"></p>
+            
+            <div style="background: #0b0f19; padding: 12px; border-radius: 8px; margin: 15px 0; border: 1px dashed #374151;">
+                <label style="font-size: 12px; color: #9ca3af;">Pay to this UPI ID:</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                    <span id="upi-text" style="font-size: 15px; font-weight: bold; color: #38bdf8;">bindsuraj678@ybl</span>
+                    <button onclick="copyUPI()" style="background: #f59e0b; color: #000; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 13px; cursor: pointer;">Copy</button>
+                </div>
+                <p id="copy-status" style="font-size: 11px; color: #10b981; margin-top: 6px; display: none;">UPI ID Copied Successfully!</p>
+            </div>
+            
+            <div class="form-group"><label>UTR Number (12 digit reference number)</label><input type="text" id="utr-input" placeholder="Enter UTR number here"></div>
+            <button class="btn" onclick="submitUTR()">Submit Payment</button>
+            <button class="btn" style="background: #1f2937; color: #fff; margin-top: 8px;" onclick="closePaymentScreen()">Back</button>
+        </div>
+    </div>
+
+    <!-- Withdrawal Screen -->
+    <div id="withdraw-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #090d16; z-index: 200; padding: 20px; overflow-y: auto;">
+        <div style="max-width: 400px; margin: 30px auto; background: #111827; padding: 22px; border-radius: 16px; border: 1px solid #1f2937;">
+            <h3 style="color: #f59e0b; margin-bottom: 15px; text-align: center;">Withdrawal Request</h3>
+            <div class="form-group">
+                <label>Select Withdrawal Method</label>
+                <select id="withdraw-method" onchange="toggleWithdrawFormType()">
+                    <option value="upi">Withdraw via UPI ID</option>
+                    <option value="bank">Withdraw via Bank Account</option>
+                </select>
+            </div>
+
+            <div id="withdraw-upi-box" class="form-group">
+                <label>Enter UPI ID</label>
+                <input type="text" id="w-upi-id" placeholder="e.g. username@oksbi">
+            </div>
+
+            <div id="withdraw-bank-box" style="display: none;">
+                <div class="form-group"><label>Account Holder Name</label><input type="text" id="w-acc-name" placeholder="Enter name"></div>
+                <div class="form-group"><label>Account Number</label><input type="text" id="w-acc-num" placeholder="Enter account number"></div>
+                <div class="form-group"><label>Confirm Account Number</label><input type="text" id="w-acc-num-confirm" placeholder="Re-enter account number"></div>
+                <div class="form-group"><label>IFSC Code</label><input type="text" id="w-ifsc" placeholder="Enter IFSC code"></div>
+            </div>
+
+            <div class="form-group">
+                <label>Withdrawal Amount (₹)</label>
+                <input type="number" id="w-amount" placeholder="Enter amount">
+            </div>
+
+            <button class="btn" onclick="submitWithdrawalRequest()">Submit Withdrawal</button>
+            <button class="btn" style="background: #1f2937; color: #fff; margin-top: 8px;" onclick="closeWithdrawScreen()">Back</button>
+        </div>
+    </div>
+
+    <!-- Redeem Code Screen -->
+    <div id="redeem-screen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#090d16;z-index:250;padding:20px;overflow-y:auto;">
+        <div style="max-width:500px;margin:40px auto;background:#111827;padding:22px;border-radius:16px;border:1px solid #1f2937;">
+            <h3 style="color:#f59e0b;margin-bottom:15px;text-align:center;">🎁 Redeem Code</h3>
+            <p style="color:#9ca3af;font-size:13px;text-align:center;margin-bottom:15px;">WhatsApp Channel se redeem code lekar yahan enter karein.</p>
+            <div class="form-group"><label>Redeem Code</label><input type="text" id="redeem-code-input" placeholder="Enter redeem code"></div>
+            <button class="btn" style="background:#8b5cf6;color:#fff;" onclick="submitRedeemCode()">Redeem Now</button>
+            <button class="btn" style="background:#25D366;color:#fff;" onclick="joinWhatsAppChannel()">📱 Join WhatsApp Channel</button>
+            <button class="btn" style="background:#1f2937;color:#fff;" onclick="closeRedeemCode()">Back</button>
+        </div>
+    </div>
+
+    <!-- Transaction History Screen -->
+    <div id="history-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #090d16; z-index: 200; padding: 20px; overflow-y: auto;">
+        <div style="max-width: 500px; margin: 20px auto; background: #111827; padding: 22px; border-radius: 16px; border: 1px solid #1f2937;">
+            <h3 style="color: #f59e0b; margin-bottom: 15px; text-align: center;" id="history-screen-title">Transaction History</h3>
+            <div id="full-history-container" style="max-height: 400px; overflow-y: auto; margin-bottom: 15px;"></div>
+            <button class="btn" style="background: #1f2937; color: #fff;" onclick="closeHistoryScreen()">Back</button>
+        </div>
+    </div>
+
+    <!-- Rewards Viewer Screen -->
+    <div id="rewards-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #090d16; z-index: 200; padding: 20px; overflow-y: auto;">
+        <div style="max-width: 500px; margin: 20px auto; background: #111827; padding: 22px; border-radius: 16px; border: 1px solid #1f2937;">
+            <h3 style="color: #f59e0b; margin-bottom: 15px; text-align: center;" id="rewards-modal-title">Tournament Rewards Structure</h3>
+            <div id="rewards-list-container" style="max-height: 400px; overflow-y: auto; margin-bottom: 15px;"></div>
+            <button class="btn" style="background: #1f2937; color: #fff;" onclick="closeRewardsScreen()">Back</button>
+        </div>
+    </div>
+
+    <!-- Tournament Joined Players / Winner Selection -->
+    <div id="participants-screen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#090d16;z-index:260;padding:20px;overflow-y:auto;">
+      <div style="max-width:560px;margin:20px auto;background:#111827;padding:22px;border-radius:16px;border:1px solid #1f2937;">
+        <h3 id="participants-title" style="color:#f59e0b;margin-bottom:8px;text-align:center;">Joined Players</h3>
+        <p id="participants-count" style="color:#38bdf8;text-align:center;font-size:13px;margin-bottom:15px;"></p>
+        <div id="participants-list" style="max-height:260px;overflow-y:auto;margin-bottom:18px;"></div>
+        <div style="background:#0b0f19;padding:14px;border-radius:10px;border:1px solid #374151;">
+          <div style="color:#10b981;font-weight:800;margin-bottom:12px;">🏆 Select Winners</div>
+          <div id="winner-selectors"></div>
+          <button class="btn" style="background:#10b981;color:#fff;" onclick="saveTournamentWinners()">💾 Save Winners</button>
+        </div>
+        <button class="btn" style="background:#1f2937;color:#fff;" onclick="closeParticipantsScreen()">Back</button>
+      </div>
+    </div>
+
+    <!-- Player Prize Collection Screen -->
+    <div id="prize-upload-screen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#090d16;z-index:280;padding:20px;overflow-y:auto;">
+      <div style="max-width:520px;margin:20px auto;background:#111827;padding:22px;border-radius:16px;border:1px solid #1f2937;">
+        <h3 style="color:#f59e0b;text-align:center;margin-bottom:8px;">🏆 Collect Prize</h3>
+        <p id="prize-upload-match" style="color:#38bdf8;text-align:center;margin-bottom:6px;"></p>
+        <p id="prize-upload-rank" style="color:#10b981;text-align:center;font-weight:800;margin-bottom:18px;"></p>
+        <div style="background:#0b0f19;border:1px solid #374151;border-radius:12px;padding:15px;">
+          <div style="color:#fff;font-weight:800;margin-bottom:6px;">Upload Screenshot for Victory Proof</div>
+          <div style="color:#9ca3af;font-size:12px;margin-bottom:14px;">Select your victory celebration screenshot from your Gallery.</div>
+          <input id="victory-screenshot-input" type="file" accept="image/*" style="display:none;" onchange="previewVictoryScreenshot(event)">
+          <button class="btn" style="background:#38bdf8;color:#000;" onclick="document.getElementById('victory-screenshot-input').click()">📷 Choose from Gallery</button>
+          <img id="victory-screenshot-preview" style="display:none;width:100%;max-height:360px;object-fit:contain;margin-top:14px;border-radius:10px;border:1px solid #374151;" alt="Victory proof preview">
+          <button id="submit-victory-proof-btn" class="btn" style="display:none;background:#10b981;color:#fff;margin-top:14px;" onclick="submitVictoryProof()">📤 Submit for Verification</button>
+        </div>
+        <button class="btn" style="background:#1f2937;color:#fff;margin-top:12px;" onclick="closePrizeUploadScreen()">Back</button>
+      </div>
+    </div>
+
+    <!-- Generic Alert & Confirmation Modals -->
+    <div id="custom-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 300; justify-content: center; align-items: center; padding: 20px;">
+        <div style="background: #111827; padding: 25px; border-radius: 16px; max-width: 380px; width: 100%; text-align: center; border: 1px solid #1f2937;">
+            <p id="modal-text" style="font-size: 15px; color: #e5e7eb; margin-bottom: 20px; line-height: 1.5;">Message</p>
+            <button class="btn" onclick="closeModal()">OK</button>
+        </div>
+    </div>
+
+    <div id="custom-confirm" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 300; justify-content: center; align-items: center; padding: 20px;">
+        <div style="background: #111827; padding: 25px; border-radius: 16px; max-width: 380px; width: 100%; text-align: center; border: 1px solid #1f2937;">
+            <p id="confirm-text" style="font-size: 15px; color: #e5e7eb; margin-bottom: 20px; line-height: 1.5;">Confirmation</p>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" style="background: #ef4444; color: #fff; margin-top:0;" id="confirm-yes-btn">Yes</button>
+                <button class="btn" style="background: #1f2937; color: #fff; margin-top:0;" onclick="closeConfirmModal()">No</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyB9MPklPH4gSH8chj5rbxQj7QZNMDb2He4",
+            authDomain: "bgmi-tournament-45595.firebaseapp.com",
+            projectId: "bgmi-tournament-45595",
+            storageBucket: "bgmi-tournament-45595.firebasestorage.app",
+            messagingSenderId: "965074729542",
+            appId: "1:965074729542:web:bcc04c8927d976da17a847",
+            measurementId: "G-755ZY62JTV"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let tournaments = [];
+        let coupons = [];
+        let pendingUTRs = [];
+        let currentLoggedInUser = null;
+        let selectedDepositAmt = 0;
+        let appliedBonusAmt = 0;
+        let countdownTimerInterval = null;
+
+        db.collection("tournaments").onSnapshot((snapshot) => {
+            tournaments = [];
+            snapshot.forEach((doc) => { tournaments.push({ id: doc.id, ...doc.data() }); });
+            if (currentLoggedInUser) {
+                if (currentLoggedInUser.role === 'member') renderMemberTournaments();
+                else {
+                    renderPlayerTournaments();
+                    renderMyMatches();
+                }
+            }
+        });
+
+        db.collection("coupons").onSnapshot((snapshot) => {
+            coupons = [];
+            snapshot.forEach((doc) => { coupons.push({ docId: doc.id, ...doc.data() }); });
+            if (currentLoggedInUser && currentLoggedInUser.role === 'member') renderAdminCoupons();
+        });
+
+        db.collection("settings").doc("payment").onSnapshot((doc) => {
+            const upi = doc.exists && doc.data().upiId ? doc.data().upiId : "bindsuraj678@ybl";
+            const upiText = document.getElementById("upi-text");
+            if (upiText) upiText.innerText = upi;
+            const current = document.getElementById("admin-upi-current");
+            if (current) current.innerText = `Current UPI: ${upi}`;
+            const input = document.getElementById("admin-upi-id");
+            if (input && document.activeElement !== input) input.value = upi;
+        });
+
+        db.collection("settings").doc("support").onSnapshot((doc) => {
+            window.currentWhatsAppLink = doc.exists && doc.data().whatsappLink ? doc.data().whatsappLink : 'https://whatsapp.com/channel/0029VbCvIZT05MUm4QylQX2Q';
+            const input=document.getElementById('admin-whatsapp-link');
+            if(input && document.activeElement!==input) input.value=window.currentWhatsAppLink;
+            const cur=document.getElementById('admin-support-current');
+            if(cur) cur.innerText='WhatsApp Channel: '+window.currentWhatsAppLink;
+        });
+
+        db.collection("pendingUTRs").onSnapshot((snapshot) => {
+            pendingUTRs = [];
+            snapshot.forEach((doc) => { pendingUTRs.push({ docId: doc.id, ...doc.data() }); });
+            if (currentLoggedInUser && currentLoggedInUser.role === 'member') renderPendingUTRs();
+        });
+
+        window.onload = async function() {
+            startLiveCountdown();
+            let savedSessionRole = localStorage.getItem('bgmi_session_role');
+            let savedSessionId = localStorage.getItem('bgmi_session_id');
+
+            if (savedSessionRole === 'member') {
+                currentLoggedInUser = { role: "member", name: "Kartik" };
+                document.getElementById('auth-screen').classList.remove('active');
+                document.getElementById('member-panel').classList.add('active');
+                renderMemberTournaments(); 
+                renderPendingUTRs(); 
+                renderAdminCoupons();
+            } else if (savedSessionRole === 'player' && savedSessionId) {
+                let docRef = db.collection("players").doc(savedSessionId);
+                let docSnap = await docRef.get();
+                if (docSnap.exists) {
+                    currentLoggedInUser = { role: "player", data: docSnap.data(), docId: docRef.id };
+                    document.getElementById('auth-screen').classList.remove('active');
+                    document.getElementById('player-app').classList.add('active');
+                    updatePlayerUI(); 
+                    renderPlayerTournaments();
+                    
+                    db.collection("players").doc(savedSessionId).onSnapshot((doc) => {
+                        if(doc.exists) {
+                            currentLoggedInUser.data = doc.data();
+                            updatePlayerUI();
+                        }
+                    });
+                }
+            }
+        };
+
+        function showModal(msg) {
+            document.getElementById('modal-text').innerText = msg;
+            document.getElementById('custom-modal').style.display = 'flex';
+        }
+        function closeModal() { document.getElementById('custom-modal').style.display = 'none'; }
+
+        function showCustomConfirm(msg, onYes) {
+            document.getElementById('confirm-text').innerText = msg;
+            document.getElementById('custom-confirm').style.display = 'flex';
+            let yesBtn = document.getElementById('confirm-yes-btn');
+            let newYesBtn = yesBtn.cloneNode(true);
+            yesBtn.parentNode.replaceChild(newYesBtn, yesBtn);
+            newYesBtn.onclick = function() { closeConfirmModal(); onYes(); };
+        }
+        function closeConfirmModal() { document.getElementById('custom-confirm').style.display = 'none'; }
+
+        function copyUPI() {
+            const upi = (document.getElementById('upi-text') || {}).innerText || 'bindsuraj678@ybl';
+            navigator.clipboard.writeText(upi).then(() => {
+                let status = document.getElementById('copy-status');
+                if (status) { status.style.display = 'block'; setTimeout(() => { status.style.display = 'none'; }, 2000); }
+            });
+        }
+
+        function copyCustomText(textToCopy, btnElement) {
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                let originalText = btnElement.innerText;
+                btnElement.innerText = "Copied!";
+                setTimeout(() => { btnElement.innerText = originalText; }, 2000);
+            });
+        }
+
+        function toggleAuthMode(isSignup) {
+            document.getElementById('forgot-password-form').style.display = "none";
+            document.getElementById('reset-password-fields').style.display = "none";
+            window.forgotPasswordVerifiedUid = null;
+            if (isSignup) {
+                document.getElementById('auth-title').innerText = "Player Sign Up";
+                document.getElementById('login-form').style.display = "none";
+                document.getElementById('signup-form').style.display = "block";
+            } else {
+                document.getElementById('auth-title').innerText = "BGMI Arena";
+                document.getElementById('signup-form').style.display = "none";
+                document.getElementById('login-form').style.display = "block";
+            }
+        }
+
+        async function handleSignup() {
+            let name = document.getElementById('su-name').value.trim();
+            let uid = document.getElementById('su-uid').value.trim();
+            let pass = document.getElementById('su-pass').value.trim();
+            let dob = document.getElementById('su-dob').value;
+            if (!name || !uid || !pass || !dob) { showModal("Please fill in all fields!"); return; }
+
+            let docRef = db.collection("players").doc(uid);
+            let docSnap = await docRef.get();
+            if (docSnap.exists) { showModal("An account with this UID already exists!"); return; }
+
+            let newPlayer = { id: uid, pass: pass, name: name, uid: uid, dob: dob, wallet: 5, matches: [], txLogs: [] };
+            await docRef.set(newPlayer);
+            showModal("Account created successfully! Please login.");
+            toggleAuthMode(false);
+        }
+
+        function showForgotPassword() {
+            document.getElementById('auth-title').innerText = "Forgot Password";
+            document.getElementById('login-form').style.display = "none";
+            document.getElementById('signup-form').style.display = "none";
+            document.getElementById('forgot-password-form').style.display = "block";
+            document.getElementById('fp-id').value = "";
+            document.getElementById('fp-dob').value = "";
+            document.getElementById('fp-new-pass').value = "";
+            document.getElementById('fp-confirm-pass').value = "";
+            document.getElementById('reset-password-fields').style.display = "none";
+            window.forgotPasswordVerifiedUid = null;
+        }
+
+        async function verifyForgotPassword() {
+            let uid = document.getElementById('fp-id').value.trim();
+            let dob = document.getElementById('fp-dob').value;
+            if (!uid || !dob) { showModal("Please enter User ID and Date of Birth!"); return; }
+
+            let docRef = db.collection("players").doc(uid);
+            let docSnap = await docRef.get();
+            if (!docSnap.exists) {
+                showModal("Invalid User ID or Date of Birth!");
+                return;
+            }
+
+            let player = docSnap.data();
+            if (String(player.dob || "") !== String(dob)) {
+                showModal("Invalid User ID or Date of Birth!");
+                return;
+            }
+
+            window.forgotPasswordVerifiedUid = uid;
+            document.getElementById('reset-password-fields').style.display = "block";
+            showModal("Details verified. Please create a new password.");
+        }
+
+        async function resetPlayerPassword() {
+            let uid = window.forgotPasswordVerifiedUid;
+            let newPass = document.getElementById('fp-new-pass').value.trim();
+            let confirmPass = document.getElementById('fp-confirm-pass').value.trim();
+
+            if (!uid) { showModal("Please verify your User ID and Date of Birth first!"); return; }
+            if (!newPass || !confirmPass) { showModal("Please enter the new password twice!"); return; }
+            if (newPass !== confirmPass) { showModal("Passwords do not match!"); return; }
+
+            await db.collection("players").doc(uid).update({ pass: newPass });
+            showModal("Password reset successfully! Please login with your new password.");
+            window.forgotPasswordVerifiedUid = null;
+            document.getElementById('forgot-password-form').style.display = "none";
+            document.getElementById('login-form').style.display = "block";
+            document.getElementById('auth-title').innerText = "BGMI Arena";
+            document.getElementById('login-id').value = uid;
+            document.getElementById('login-pass').value = "";
+        }
+
+        async function handleLogin() {
+            let inputId = document.getElementById('login-id').value.trim();
+            let inputPass = document.getElementById('login-pass').value.trim();
+            if (!inputId || !inputPass) { showModal("Please enter User ID and Password!"); return; }
+
+            if (inputId.toUpperCase() === "KARTIK" && inputPass === "PRAVEEN@09876") {
+                currentLoggedInUser = { role: "member", name: "Kartik" };
+                localStorage.setItem('bgmi_session_role', 'member');
+                localStorage.removeItem('bgmi_session_id');
+
+                document.getElementById('auth-screen').classList.remove('active');
+                document.getElementById('member-panel').classList.add('active');
+                showAdminScreen('home');
+                return;
+            }
+
+            let docRef = db.collection("players").doc(inputId);
+            let docSnap = await docRef.get();
+            if (docSnap.exists && docSnap.data().pass === inputPass) {
+                currentLoggedInUser = { role: "player", data: docSnap.data(), docId: docRef.id };
+                localStorage.setItem('bgmi_session_role', 'player');
+                localStorage.setItem('bgmi_session_id', docRef.id);
+
+                document.getElementById('auth-screen').classList.remove('active');
+                document.getElementById('player-app').classList.add('active');
+                updatePlayerUI(); 
+                renderPlayerTournaments();
+                
+                db.collection("players").doc(inputId).onSnapshot((doc) => {
+                    if(doc.exists) {
+                        currentLoggedInUser.data = doc.data();
+                        updatePlayerUI();
+                    }
+                });
+                return;
+            }
+            showModal("Invalid User ID or Password!");
+        }
+
+        function logout() {
+            currentLoggedInUser = null;
+            localStorage.removeItem('bgmi_session_role');
+            localStorage.removeItem('bgmi_session_id');
+
+            document.getElementById('member-panel').classList.remove('active');
+            document.getElementById('player-app').classList.remove('active');
+            document.getElementById('auth-screen').classList.add('active');
+            document.getElementById('login-id').value = "";
+            document.getElementById('login-pass').value = "";
+            document.getElementById('su-dob').value = "";
+            document.getElementById('fp-dob').value = "";
+            document.getElementById('forgot-password-form').style.display = "none";
+            document.getElementById('login-form').style.display = "block";
+            document.getElementById('signup-form').style.display = "none";
+            document.getElementById('auth-title').innerText = "BGMI Arena";
+        }
+        function showAdminScreen(screen) {
+            if(screen==='prizeVerification'){ document.querySelectorAll('.admin-subscreen').forEach(x=>x.style.display='none'); document.getElementById('admin-prizeVerification-screen').style.display='block'; renderPrizeVerification(); return; }
+            document.getElementById('admin-home-screen').style.display = screen === 'home' ? 'block' : 'none';
+            document.getElementById('admin-deposit-screen').style.display = screen === 'deposit' ? 'block' : 'none';
+            document.getElementById('admin-withdraw-screen').style.display = screen === 'withdraw' ? 'block' : 'none';
+            document.getElementById('admin-matches-screen').style.display = screen === 'matches' ? 'block' : 'none';
+            if (screen === 'deposit') { showDepositTab('requests'); renderPendingUTRs(); renderAdminDepositHistory(); renderAdminCoupons(); loadAdminUPI(); }
+            if (screen === 'withdraw') { showWithdrawTab('pending'); renderAdminWithdrawals(); renderWithdrawalHistory(); }
+            if (screen === 'matches') { showMatchTab('create'); renderMemberTournaments(); renderMatchHistory(); }
+        }
+
+        function showDepositTab(tab) {
+            ['requests','history','promo','redeem','upi','support'].forEach(x => {
+                const el = document.getElementById(`deposit-${x}-tab`);
+                if (el) el.style.display = x === tab ? 'block' : 'none';
+            });
+            if (tab === 'requests') renderPendingUTRs();
+            if (tab === 'history') renderAdminDepositHistory();
+            if (tab === 'promo') renderAdminCoupons();
+            if (tab === 'redeem') renderAdminRedeemCodes();
+            if (tab === 'upi') loadAdminUPI();
+            if (tab === 'support') loadSupportSettings();
+        }
+
+        function showWithdrawTab(tab) {
+            ['pending','requests','history'].forEach(x => {
+                const el = document.getElementById(`withdraw-${x}-tab`);
+                if (el) el.style.display = x === tab ? 'block' : 'none';
+            });
+            if (tab === 'pending' || tab === 'requests') renderAdminWithdrawals();
+            if (tab === 'history') renderWithdrawalHistory();
+        }
+
+        function showMatchTab(tab) {
+            ['create','start','history'].forEach(x => {
+                const el = document.getElementById(`match-${x}-tab`);
+                if (el) el.style.display = x === tab ? 'block' : 'none';
+            });
+            if (tab === 'start') renderMemberTournaments();
+            if (tab === 'history') renderMatchHistory();
+        }
+
+        async function saveAdminUPI() {
+            const input = document.getElementById('admin-upi-id');
+            const upi = input ? input.value.trim() : '';
+            if (!upi || !upi.includes('@')) { showModal('Please enter a valid UPI ID!'); return; }
+            await db.collection('settings').doc('payment').set({ upiId: upi }, { merge: true });
+            showModal('UPI ID updated successfully! Players will see the new UPI ID on the deposit payment screen.');
+        }
+
+        async function loadAdminUPI() {
+            const snap = await db.collection('settings').doc('payment').get();
+            const upi = snap.exists && snap.data().upiId ? snap.data().upiId : 'bindsuraj678@ybl';
+            const input = document.getElementById('admin-upi-id');
+            const current = document.getElementById('admin-upi-current');
+            if (input) input.value = upi;
+            if (current) current.innerText = `Current UPI: ${upi}`;
+        }
+
+        async function renderAdminDepositHistory() {
+            const container = document.getElementById('admin-deposit-history-list');
+            if (!container) return;
+            const snapshot = await db.collection('players').get();
+            const logs = [];
+            snapshot.forEach(doc => {
+                const p = doc.data();
+                (p.txLogs || []).forEach(l => {
+                    if (!(l.utr || '').startsWith('WITHDRAW')) logs.push({ ...l, playerName: p.name || 'Player', playerUid: p.uid || doc.id });
+                });
+            });
+            logs.sort((a,b) => new Date(b.time || 0) - new Date(a.time || 0));
+            if (!logs.length) { container.innerHTML = '<p style="color:#9ca3af;text-align:center;">No deposit history.</p>'; return; }
+            container.innerHTML = logs.map(l => `<div style="background:#111827;padding:12px;border-radius:8px;margin-bottom:8px;border-left:4px solid ${l.status==='SUCCESS'?'#10b981':l.status==='REJECTED'?'#ef4444':'#f59e0b'};"><b style="color:#38bdf8;">${l.playerName}</b><br><span>UID: ${l.playerUid}</span><br><span>₹${l.amount} | UTR: ${l.utr}</span><br><b>Status: ${l.status}</b><br><small>${l.time || ''}</small><br><button class="btn" style="background:#ef4444;color:#fff;padding:7px 12px;margin-top:8px;" onclick="deleteAdminHistoryItem('deposit','${encodeURIComponent(l.playerUid)}','${encodeURIComponent(l.utr || '')}','${encodeURIComponent(l.time || '')}')">🗑️ Delete</button></div>`).join('');
+        }
+
+        async function renderAdminWithdrawals() {
+            const pending = document.getElementById('admin-withdraw-pending-list');
+            const requests = document.getElementById('admin-withdraw-requests-list');
+            const snap = await db.collection('pendingWithdrawals').get();
+            const reqs = [];
+            snap.forEach(doc => reqs.push({ docId: doc.id, ...doc.data() }));
+            const empty = '<p style="color:#9ca3af;text-align:center;">No pending withdrawal requests.</p>';
+            const copyBtn = (details, label='Copy Details') => `<button class="btn" style="background:#3b82f6;color:#fff;margin:0;" onclick="copyWithdrawalDetails(${JSON.stringify(details)})">📋 ${label}</button>`;
+            if (pending) pending.innerHTML = reqs.length ? reqs.map(r => `<div style="background:#111827;padding:14px;border-radius:10px;margin-bottom:10px;"><b style="color:#38bdf8;">${r.playerName}</b><p style="color:#f59e0b;">₹${r.amount}</p><p style="color:#34d399;font-size:13px;white-space:pre-line;">${r.methodDetails}</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">${copyBtn(r.methodDetails)}<small style="align-self:center;">${r.time || ''}</small></div></div>`).join('') : empty;
+            if (requests) requests.innerHTML = reqs.length ? reqs.map(r => `<div style="background:#111827;padding:14px;border-radius:10px;margin-bottom:10px;"><b style="color:#38bdf8;">${r.playerName} (UID: ${r.playerUid})</b><p style="color:#f59e0b;margin:5px 0;">Amount: ₹${r.amount}</p><p style="color:#34d399;font-size:13px;white-space:pre-line;">${r.methodDetails}</p><div style="display:flex;gap:8px;flex-wrap:wrap;">${copyBtn(r.methodDetails)}<button class="btn" style="background:#10b981;color:#fff;margin:0;" onclick="approveWithdrawal('${r.docId}', ${r.amount})">Approve</button><button class="btn" style="background:#ef4444;color:#fff;margin:0;" onclick="cancelWithdrawal('${r.docId}', ${r.amount}, '${r.playerId}', '${r.historyId || ''}')">Cancel</button></div></div>`).join('') : empty;
+        }
+
+        async function renderWithdrawalHistory() {
+            const container = document.getElementById('admin-withdraw-history-list');
+            if (!container) return;
+            const snap = await db.collection('withdrawalHistory').get();
+            const rows=[]; snap.forEach(doc=>rows.push({id:doc.id,...doc.data()}));
+            rows.sort((a,b)=>new Date(b.time||0)-new Date(a.time||0));
+            if (!rows.length) { container.innerHTML='<p style="color:#9ca3af;text-align:center;">No withdrawal history.</p>'; return; }
+            container.innerHTML=rows.map(r=>`<div style="background:#111827;padding:12px;border-radius:8px;margin-bottom:8px;"><b style="color:#38bdf8;">${r.playerName}</b> | UID: ${r.playerUid}<br><span>₹${r.amount} | ${r.methodDetails}</span><br><b>Status: ${r.status}</b><br><small>${r.time||''}</small><br><button class="btn" style="background:#ef4444;color:#fff;padding:7px 12px;margin-top:8px;" onclick="deleteAdminHistoryItem('withdraw','${r.id}')">🗑️ Delete</button></div>`).join('');
+        }
+
+        function verifyHistoryDeletePassword() {
+            const entered = prompt('Enter history delete password:');
+            if (entered === null) return false;
+            if (entered !== 'Admin@0099') {
+                showModal('Wrong password! History was not deleted.');
+                return false;
+            }
+            return true;
+        }
+
+        async function deleteAdminHistoryItem(type, ...args) {
+            if (!verifyHistoryDeletePassword()) return;
+            try {
+                if (type === 'withdraw') {
+                    const historyId = args[0];
+                    await db.collection('withdrawalHistory').doc(historyId).delete();
+                    showModal('Withdrawal history deleted successfully.');
+                    await renderWithdrawalHistory();
+                    return;
+                }
+
+                const playerUid = decodeURIComponent(args[0] || '');
+                const utr = decodeURIComponent(args[1] || '');
+                const time = decodeURIComponent(args[2] || '');
+                const playerRef = db.collection('players').doc(playerUid);
+                const snap = await playerRef.get();
+                if (!snap.exists) { showModal('Player record not found.'); return; }
+                const data = snap.data();
+                const logs = data.txLogs || [];
+                const index = logs.findIndex(l => !(l.utr || '').startsWith('WITHDRAW') && (l.utr || '') === utr && (l.time || '') === time);
+                if (index === -1) { showModal('History record not found.'); return; }
+                logs.splice(index, 1);
+                await playerRef.update({ txLogs: logs });
+                showModal('Deposit history deleted successfully.');
+                await renderAdminDepositHistory();
+            } catch (err) {
+                console.error(err);
+                showModal('Could not delete history. Please try again.');
+            }
+        }
+
+        async function deleteAllAdminHistory(type) {
+            if (!verifyHistoryDeletePassword()) return;
+            showCustomConfirm(type === 'deposit' ? 'Delete ALL deposit history? This cannot be undone.' : 'Delete ALL withdrawal history? This cannot be undone.', async function() {
+                try {
+                    if (type === 'withdraw') {
+                        const snap = await db.collection('withdrawalHistory').get();
+                        const refs = [];
+                        snap.forEach(doc => refs.push(doc.ref));
+                        for (let i = 0; i < refs.length; i += 400) {
+                            const batch = db.batch();
+                            refs.slice(i, i + 400).forEach(ref => batch.delete(ref));
+                            if (refs.slice(i, i + 400).length) await batch.commit();
+                        }
+                        showModal('All withdrawal history deleted successfully.');
+                        await renderWithdrawalHistory();
+                        return;
+                    }
+
+                    const snap = await db.collection('players').get();
+                    for (const doc of snap.docs) {
+                        const data = doc.data();
+                        const logs = data.txLogs || [];
+                        const filtered = logs.filter(l => (l.utr || '').startsWith('WITHDRAW'));
+                        if (filtered.length !== logs.length) await doc.ref.update({ txLogs: filtered });
+                    }
+                    showModal('All deposit history deleted successfully.');
+                    await renderAdminDepositHistory();
+                } catch (err) {
+                    console.error(err);
+                    showModal('Could not delete all history. Please try again.');
+                }
+            });
+        }
+
+        async function cancelWithdrawal(docId, amount, playerId, historyId) {
+            showCustomConfirm('Cancel this withdrawal and refund the amount?', async function() {
+                const playerRef=db.collection('players').doc(playerId);
+                const snap=await playerRef.get();
+                if (snap.exists) await playerRef.update({wallet:(snap.data().wallet||0)+Number(amount)});
+                if (historyId) await db.collection('withdrawalHistory').doc(historyId).update({status:'CANCELLED'});
+                await db.collection('pendingWithdrawals').doc(docId).delete();
+                showModal('Withdrawal cancelled and amount refunded.');
+                renderAdminWithdrawals(); renderWithdrawalHistory();
+            });
+        }
+
+        async function rejectUTR(docId) {
+            const reqDoc = pendingUTRs.find(x => x.docId === docId);
+            if (!reqDoc) return;
+            showCustomConfirm('Reject this deposit request?', async function() {
+                const playerRef=db.collection('players').doc(reqDoc.playerId);
+                const snap=await playerRef.get();
+                if (snap.exists) {
+                    const logs=snap.data().txLogs||[];
+                    const log=logs.find(l=>l.utr===reqDoc.utr && l.status==='PENDING');
+                    if(log) log.status='REJECTED';
+                    await playerRef.update({txLogs:logs});
+                }
+                await db.collection('pendingUTRs').doc(docId).delete();
+                showModal('Deposit request rejected.');
+                renderPendingUTRs(); renderAdminDepositHistory();
+            });
+        }
+
+        async function startTournament(tid) {
+            await db.collection('tournaments').doc(tid).update({status:'Running', startedAt:Date.now()});
+            showModal('Match started successfully!');
+            renderMemberTournaments();
+        }
+
+        async function createCouponCode() {
+            let code = document.getElementById('admin-coupon-code').value.trim().toUpperCase();
+            let percent = Number(document.getElementById('admin-coupon-bonus').value);
+            if (!code || isNaN(percent) || percent <= 0) { showModal("Please enter a valid code and percentage!"); return; }
+            let couponRef = db.collection("coupons").doc(code);
+            let snap = await couponRef.get();
+            if (snap.exists) { showModal("This promo code already exists!"); return; }
+            await couponRef.set({ code: code, percent: percent });
+            showModal("Promo code created successfully!");
+            document.getElementById('admin-coupon-code').value = "";
+            document.getElementById('admin-coupon-bonus').value = "";
+        }
+
+        async function deleteCouponCode(docId) {
+            showCustomConfirm("Delete this coupon code?", async function() {
+                await db.collection("coupons").doc(docId).delete();
+                showModal("Coupon deleted successfully!");
+            });
+        }
+
+        function renderAdminCoupons() {
+            let container = document.getElementById('admin-coupons-list');
+            if (!container) return;
+            if (coupons.length === 0) { container.innerHTML = `<p style="color:#9ca3af;font-size:13px;">No active promo codes.</p>`; return; }
+            let html = '';
+            coupons.forEach(c => {
+                let pct = Number(c.percent || 0);
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;background:#0b0f19;padding:8px 12px;border-radius:6px;margin-bottom:6px;border:1px solid #1f2937;">
+                    <span style="color:#38bdf8;font-weight:bold;">${c.code} (+${pct}%)</span>
+                    <button onclick="deleteCouponCode('${c.docId}')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Delete</button>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        async function createRedeemCode() {
+            const code = document.getElementById('admin-redeem-code').value.trim().toUpperCase();
+            const amount = Number(document.getElementById('admin-redeem-amount').value);
+            if (!code || !amount || amount <= 0) { showModal('Enter a valid redeem code and amount.'); return; }
+            const ref = db.collection('redeemCodes').doc(code);
+            const snap = await ref.get();
+            if (snap.exists) { showModal('This redeem code already exists!'); return; }
+            await ref.set({code, amount, active:true, createdAt: Date.now()});
+            showModal('Redeem code created successfully!');
+            document.getElementById('admin-redeem-code').value='';
+            document.getElementById('admin-redeem-amount').value='';
+            renderAdminRedeemCodes();
+        }
+
+        async function renderAdminRedeemCodes() {
+            const c = document.getElementById('admin-redeem-list');
+            if (!c) return;
+            const snap = await db.collection('redeemCodes').get();
+            const rows=[]; snap.forEach(d=>rows.push({docId:d.id,...d.data()}));
+            if (!rows.length) { c.innerHTML='<p style="color:#9ca3af;font-size:13px;">No redeem codes.</p>'; return; }
+            c.innerHTML=rows.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;background:#0b0f19;padding:8px 12px;border-radius:6px;margin-bottom:6px;border:1px solid #1f2937;"><span style="color:#38bdf8;font-weight:bold;">${r.code} (₹${r.amount})</span><button onclick="deleteRedeemCode('${r.docId}')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Delete</button></div>`).join('');
+        }
+
+        async function deleteRedeemCode(code) {
+            showCustomConfirm('Delete this redeem code?', async function(){ await db.collection('redeemCodes').doc(code).delete(); renderAdminRedeemCodes(); showModal('Redeem code deleted.'); });
+        }
+
+        async function createTournament() {
+            let name = document.getElementById('m-name').value.trim();
+            let type = document.getElementById('m-type').value;
+            let fee = Number(document.getElementById('m-fee').value);
+            let prize = Number(document.getElementById('m-prize').value);
+            let maxPlayers = Number(document.getElementById('m-max-players').value);
+            let timeVal = document.getElementById('m-time').value;
+
+            let rew1 = Number(document.getElementById('rew-1').value) || 0;
+            let rew2 = Number(document.getElementById('rew-2').value) || 0;
+            let rew3 = Number(document.getElementById('rew-3').value) || 0;
+            let rew4 = Number(document.getElementById('rew-4').value) || 0;
+            let rew5 = Number(document.getElementById('rew-5').value) || 0;
+            let rew6to10 = Number(document.getElementById('rew-6-10').value) || 0;
+
+            if (!name || isNaN(fee) || isNaN(prize) || !timeVal || !Number.isInteger(maxPlayers) || maxPlayers < 1) { showModal("Please fill in basic tournament details and a valid maximum player limit!"); return; }
+
+            let rewardsStructure = { rew1, rew2, rew3, rew4, rew5, rew6to10 };
+            let newT = { name, type, fee, prize, maxPlayers, time: new Date(timeVal).getTime(), roomId: "", roomPass: "", status: "Scheduled", rewards: rewardsStructure, winners: [] };
+
+            await db.collection("tournaments").add(newT);
+            showModal("Tournament published online successfully!");
+            document.getElementById('m-name').value = "";
+            document.getElementById('m-fee').value = "";
+            document.getElementById('m-prize').value = "";
+            document.getElementById('m-max-players').value = "";
+            document.getElementById('m-time').value = "";
+            document.getElementById('rew-1').value = "";
+            document.getElementById('rew-2').value = "";
+            document.getElementById('rew-3').value = "";
+            document.getElementById('rew-4').value = "";
+            document.getElementById('rew-5').value = "";
+            document.getElementById('rew-6-10').value = "";
+        }
+
+        async function updateRoomDetails(tid) {
+            let rId = document.getElementById(`room-id-${tid}`).value.trim();
+            let rPass = document.getElementById(`room-pass-${tid}`).value.trim();
+            await db.collection("tournaments").doc(tid).update({ roomId: rId, roomPass: rPass });
+            showModal("Room details updated successfully!");
+        }
+
+        async function finishTournamentStatus(tid) {
+            showCustomConfirm("Finish this tournament?", async function() {
+                await db.collection("tournaments").doc(tid).update({ status: "Finished", finishedAt: Date.now() });
+                showModal("Tournament finished!");
+                renderMemberTournaments();
+                renderMatchHistory();
+            });
+        }
+
+        let activeParticipantTournamentId = null;
+        let activeTournamentParticipants = [];
+
+        async function getTournamentParticipants(tid) {
+            const snap = await db.collection('players').get();
+            const list = [];
+            snap.forEach(doc => {
+                const p = doc.data();
+                const matches = p.matches || [];
+                if (matches.some(m => String(m.id || m.tid || '') === String(tid))) {
+                    list.push({id:doc.id, name:p.name || 'Unknown Player', uid:p.uid || doc.id});
+                }
+            });
+            list.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+            return list;
+        }
+
+        async function openTournamentParticipants(tid) {
+            const t = tournaments.find(x => x.id === tid);
+            if (!t) return;
+            activeParticipantTournamentId = tid;
+            document.getElementById('participants-screen').style.display='block';
+            document.getElementById('participants-title').innerText=`👥 ${t.name}`;
+            document.getElementById('participants-count').innerText='Loading joined players...';
+            document.getElementById('participants-list').innerHTML='<p style="color:#9ca3af;text-align:center;">Loading...</p>';
+
+            activeTournamentParticipants = await getTournamentParticipants(tid);
+            document.getElementById('participants-count').innerText=`Total Joined Players: ${activeTournamentParticipants.length}`;
+            document.getElementById('participants-list').innerHTML = activeTournamentParticipants.length
+              ? activeTournamentParticipants.map((p,i)=>`<div style="background:#111827;border:1px solid #1f2937;padding:10px;border-radius:8px;margin-bottom:7px;"><b style="color:#38bdf8;">#${i+1} ${p.name}</b><span style="color:#9ca3af;font-size:12px;"> — UID: ${p.uid}</span></div>`).join('')
+              : '<p style="color:#9ca3af;text-align:center;">No player has joined this tournament yet.</p>';
+
+            const r=t.rewards||{};
+            const rows=[['1st Place',r.rew1||0],['2nd Place',r.rew2||0],['3rd Place',r.rew3||0],['4th Place',r.rew4||0],['5th Place',r.rew5||0],['6th-10th Place',r.rew6to10||0]];
+            const winners=t.winners||[];
+            document.getElementById('winner-selectors').innerHTML=rows.map((row,i)=>{
+                const existing=winners.find(w=>Number(w.rank)===i+1);
+                const options=['<option value="">Select Player</option>'].concat(activeTournamentParticipants.map(p=>`<option value="${p.id}" ${existing&&existing.playerId===p.id?'selected':''}>${p.name} (UID: ${p.uid})</option>`)).join('');
+                return `<div style="margin-bottom:9px;"><label style="font-size:11px;color:#9ca3af;">${row[0]} — ₹${row[1]}</label><select id="winner-${i+1}" data-prize="${row[1]}">${options}</select></div>`;
+            }).join('');
+        }
+
+        function closeParticipantsScreen(){
+            document.getElementById('participants-screen').style.display='none';
+            activeParticipantTournamentId=null;
+            activeTournamentParticipants=[];
+        }
+
+        async function saveTournamentWinners(){
+            if(!activeParticipantTournamentId) return;
+            const selected=[];
+            for(let rank=1;rank<=10;rank++){
+                const select=document.getElementById(`winner-${rank}`);
+                if(!select || !select.value) continue;
+                const player=activeTournamentParticipants.find(p=>p.id===select.value);
+                if(player) selected.push({rank,playerId:player.id,playerName:player.name,playerUid:player.uid,prize:Number(select.dataset.prize||0)});
+            }
+            if(new Set(selected.map(w=>w.playerId)).size!==selected.length){
+                showModal('एक player को दो अलग positions पर select नहीं कर सकते।');
+                return;
+            }
+            await db.collection('tournaments').doc(activeParticipantTournamentId).update({winners:selected});
+            const local=tournaments.find(x=>x.id===activeParticipantTournamentId);
+            if(local) local.winners=selected;
+            showModal('Winners saved successfully!');
+        }
+
+        function renderMemberTournaments() {
+            let container = document.getElementById('member-tournaments-list');
+            if (!container) return;
+            const active = tournaments.filter(t => t.status !== 'Finished');
+            if (active.length === 0) { container.innerHTML = `<p style="color:#9ca3af;font-size:14px;">No matches waiting to start.</p>`; return; }
+            let html = '';
+            active.forEach((t, index) => {
+                let dateStr = new Date(t.time).toLocaleString();
+                let isRunning = t.status === 'Running';
+                html += `<div style="padding:15px;background:#111827;border-radius:12px;margin-bottom:15px;border:1px solid #1f2937;">
+                    <div style="color:#38bdf8;font-weight:bold;">Match #${index+1} - ${t.name} (${t.type})</div>
+                    <div style="color:#f59e0b;margin:6px 0;">🏆 Prize: ₹${t.prize} | ${dateStr}</div>
+                    <div style="color:${isRunning?'#10b981':'#f59e0b'};font-weight:bold;margin:8px 0;">Status: ${isRunning?'RUNNING':'SCHEDULED'}</div>
+                    <div style="margin-top:10px;background:#0b0f19;padding:12px;border-radius:8px;">
+                        <label style="font-size:12px;color:#38bdf8;">Room ID:</label>
+                        <input type="text" id="room-id-${t.id}" value="${t.roomId||''}" style="margin-bottom:8px;">
+                        <label style="font-size:12px;color:#38bdf8;">Password:</label>
+                        <input type="text" id="room-pass-${t.id}" value="${t.roomPass||''}" style="margin-bottom:8px;">
+                        <button class="btn" style="background:#3b82f6;color:#fff;margin-top:0;" onclick="updateRoomDetails('${t.id}')">Update Room Details</button>
+                        <button class="btn" style="background:#8b5cf6;color:#fff;" onclick="openTournamentParticipants('${t.id}')">👥 Joined Players / Winners</button>
+                        ${!isRunning ? `<button class="btn" style="background:#10b981;color:#fff;" onclick="startTournament('${t.id}')">▶️ Start Match</button>` : ''}
+                        ${isRunning ? `<button class="btn" style="background:#ef4444;color:#fff;" onclick="finishTournamentStatus('${t.id}')">Finish Match</button>` : ''}
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderMatchHistory() {
+            const container=document.getElementById('admin-match-history-list');
+            if(!container) return;
+            const finished=tournaments.filter(t=>t.status==='Finished').sort((a,b)=>(b.finishedAt||0)-(a.finishedAt||0));
+            if(!finished.length){container.innerHTML='<p style="color:#9ca3af;text-align:center;">No finished matches.</p>';return;}
+            container.innerHTML=finished.map((t,i)=>`<div style="background:#111827;padding:14px;border-radius:10px;margin-bottom:10px;border:1px solid #1f2937;">
+                <b style="color:#38bdf8;">#${i+1} ${t.name}</b>
+                <p style="color:#f59e0b;margin:5px 0;">Prize: ₹${t.prize} | ${new Date(t.time).toLocaleString()}</p>
+                <p style="color:#10b981;">Status: FINISHED</p>
+                <p style="color:${t.hiddenFromHome ? '#f59e0b' : '#9ca3af'};font-size:12px;margin:5px 0;">${t.hiddenFromHome ? 'Hidden from Player Home' : 'Visible on Player Home'}</p>
+                <button class="btn" style="background:#ef4444;color:#fff;padding:8px 12px;margin-top:8px;" onclick="deleteMatchFromPlayerHome('${t.id}')">🗑️ Delete from Player Home</button>
+                <button class="btn" style="background:#f59e0b;color:#000;padding:8px 12px;margin-top:8px;" onclick="openTournamentParticipants('${t.id}')">🏆 ${t.winners&&t.winners.length?'Edit Winners':'Announce Winners'}</button>
+            </div>`).join('');
+        }
+
+        async function deleteMatchFromPlayerHome(tid) {
+            const match = tournaments.find(t => String(t.id) === String(tid));
+            if (!match) { showModal('Match not found.'); return; }
+            showCustomConfirm('Delete this match from the Player Home screen? It will remain in Matches and Match History.', async function() {
+                try {
+                    await db.collection('tournaments').doc(tid).update({hiddenFromHome:true});
+                    const local = tournaments.find(t => String(t.id) === String(tid));
+                    if (local) local.hiddenFromHome = true;
+                    renderMatchHistory();
+                    renderPlayerTournaments();
+                    showModal('Match removed from Player Home. Matches history remains safe.');
+                } catch (err) {
+                    console.error(err);
+                    showModal('Could not delete match from Player Home. Please try again.');
+                }
+            });
+        }
+
+        async function openAdminHistory(type) {
+            let container = document.getElementById('full-history-container');
+            document.getElementById('history-screen-title').innerText = type === 'deposit' ? "Deposit History" : "Withdrawal History";
+            let snapshot = await db.collection("players").get();
+            let allLogs = [];
+            snapshot.forEach(doc => {
+                let p = doc.data();
+                if (p.txLogs) {
+                    p.txLogs.forEach(l => {
+                        let isWithdraw = l.utr && l.utr.startsWith('WITHDRAW');
+                        if (type === 'withdraw' && isWithdraw) allLogs.push(l);
+                        if (type === 'deposit' && !isWithdraw) allLogs.push(l);
+                    });
+                }
+            });
+            if (allLogs.length === 0) { container.innerHTML = `<p style="color: #9ca3af; text-align: center;">No records found.</p>`; }
+            else {
+                let html = '';
+                allLogs.reverse().forEach(log => {
+                    html += `<div class="history-row ${log.status === 'SUCCESS' ? 'success' : 'pending'}" style="padding: 12px; margin-bottom: 8px; border-radius: 8px; display:flex; justify-content:space-between;"><span>₹${log.amount}</span><span>ID: ${log.utr}</span><span><b>${log.status}</b></span></div>`;
+                });
+                container.innerHTML = html;
+            }
+            document.getElementById('history-screen').style.display = 'block';
+        }
+
+        function openHistoryScreen() { renderFullHistory(); document.getElementById('history-screen').style.display = 'block'; }
+        function closeHistoryScreen() { document.getElementById('history-screen').style.display = 'none'; }
+        function openWithdrawalRequestsScreen() { renderWithdrawalRequestsAdmin(); document.getElementById('rewards-screen').style.display = 'block'; }
+        function closeRewardsScreen() { document.getElementById('rewards-screen').style.display = 'none'; }
+
+        async function renderWithdrawalRequestsAdmin() {
+            let container = document.getElementById('rewards-list-container');
+            let snapshot = await db.collection("pendingWithdrawals").get();
+            let reqs = [];
+            snapshot.forEach(doc => reqs.push({ docId: doc.id, ...doc.data() }));
+            if (reqs.length === 0) { container.innerHTML = `<p style="color: #9ca3af; text-align: center;">No pending requests.</p>`; return; }
+            let html = '';
+            reqs.forEach(req => {
+                html += `<div style="background: #111827; padding: 15px; margin-bottom: 10px; border-radius: 8px;">
+                    <p style="color: #38bdf8; font-weight: bold;">${req.playerName} (UID: ${req.playerUid})</p>
+                    <p style="color: #f59e0b; margin: 5px 0;">Amount: ₹${req.amount}</p>
+                    <p style="color: #34d399; font-size: 13px;">${req.methodDetails}</p>
+                    <button class="btn" style="background:#10b981; color:#fff;" onclick="approveWithdrawal('${req.docId}', ${req.amount})">Approve</button>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        async function copyWithdrawalDetails(details) {
+            try {
+                await navigator.clipboard.writeText(details || '');
+                showModal('Withdrawal details copied!');
+            } catch (e) {
+                const ta = document.createElement('textarea');
+                ta.value = details || '';
+                document.body.appendChild(ta); ta.select();
+                document.execCommand('copy'); ta.remove();
+                showModal('Withdrawal details copied!');
+            }
+        }
+
+        async function approveWithdrawal(docId, amount) {
+            showCustomConfirm("Approve withdrawal?", async function() {
+                try {
+                    const reqSnap = await db.collection('pendingWithdrawals').doc(docId).get();
+                    if (!reqSnap.exists) { showModal('Withdrawal request not found!'); return; }
+                    const req = reqSnap.data();
+
+                    // Mark the separate withdrawal history record as successful/approved.
+                    if (req.historyId) {
+                        await db.collection('withdrawalHistory').doc(req.historyId).update({status:'APPROVED'});
+                    }
+
+                    // Also update the player's wallet transaction history from PENDING to SUCCESS.
+                    if (req.playerId) {
+                        const playerRef = db.collection('players').doc(req.playerId);
+                        const playerSnap = await playerRef.get();
+                        if (playerSnap.exists) {
+                            const data = playerSnap.data();
+                            const logs = data.txLogs || [];
+                            let changed = false;
+                            logs.forEach(log => {
+                                if (log.status === 'PENDING' && Number(log.amount) === Number(req.amount) && (log.time || '') === (req.time || '')) {
+                                    log.status = 'SUCCESS';
+                                    if (req.historyId) log.historyId = req.historyId;
+                                    changed = true;
+                                }
+                            });
+                            if (changed) await playerRef.update({txLogs: logs});
+                        }
+                    }
+
+                    await db.collection('pendingWithdrawals').doc(docId).delete();
+                    showModal('Withdrawal approved successfully!');
+                    renderAdminWithdrawals(); renderWithdrawalHistory();
+                } catch (err) {
+                    console.error(err);
+                    showModal('Could not approve withdrawal. Please try again.');
+                }
+            });
+        }
+        function toggleWithdrawFormType() {
+            let m = document.getElementById('withdraw-method').value;
+            document.getElementById('withdraw-upi-box').style.display = m === 'upi' ? 'block' : 'none';
+            document.getElementById('withdraw-bank-box').style.display = m === 'bank' ? 'block' : 'none';
+        }
+
+        async function openRedeemCode() {
+            document.getElementById('redeem-code-input').value='';
+            document.getElementById('redeem-screen').style.display='block';
+        }
+        function closeRedeemCode() { document.getElementById('redeem-screen').style.display='none'; }
+        function openTelegramSupport() { window.open('https://t.me/aryatreader', '_blank'); }
+        function joinWhatsAppChannel() {
+            const url = (window.currentWhatsAppLink || 'https://whatsapp.com/channel/0029VbCvIZT05MUm4QylQX2Q');
+            window.open(url, '_blank');
+        }
+        async function submitRedeemCode() {
+            const code=document.getElementById('redeem-code-input').value.trim().toUpperCase();
+            if(!code){showModal('Please enter a redeem code.');return;}
+            const ref=db.collection('redeemCodes').doc(code); const snap=await ref.get();
+            if(!snap.exists || snap.data().active===false){showModal('Invalid or inactive redeem code!');return;}
+            const pRef=db.collection('players').doc(currentLoggedInUser.docId); const pSnap=await pRef.get();
+            if(!pSnap.exists){showModal('Player account not found.');return;}
+            const p=pSnap.data(); const used=p.redeemedCodes||[];
+            if(used.includes(code)){showModal('You have already used this redeem code.');return;}
+            const amount=Number(snap.data().amount||0); if(amount<=0){showModal('Invalid redeem code amount.');return;}
+            const logs=p.txLogs||[]; logs.push({amount,utr:`REDEEM-${code}`,status:'SUCCESS',time:new Date().toLocaleString()});
+            await pRef.update({wallet:Number(p.wallet||0)+amount,txLogs:logs,redeemedCodes:[...used,code]});
+            closeRedeemCode(); showModal(`Redeem successful! ₹${amount} added to your wallet.`);
+        }
+        async function loadSupportSettings(){
+            const snap=await db.collection('settings').doc('support').get();
+            const link=snap.exists && snap.data().whatsappLink ? snap.data().whatsappLink : 'https://whatsapp.com/channel/0029VbCvIZT05MUm4QylQX2Q';
+            window.currentWhatsAppLink=link;
+            const input=document.getElementById('admin-whatsapp-link'); if(input) input.value=link;
+            const cur=document.getElementById('admin-support-current'); if(cur) cur.innerText='WhatsApp Channel: '+link;
+        }
+        async function saveSupportSettings(){
+            const link=document.getElementById('admin-whatsapp-link').value.trim();
+            if(!link.startsWith('https://whatsapp.com/channel/')){showModal('Please enter a valid WhatsApp Channel link.');return;}
+            await db.collection('settings').doc('support').set({whatsappLink:link},{merge:true});
+            window.currentWhatsAppLink=link; showModal('WhatsApp Channel link updated successfully.'); loadSupportSettings();
+        }
+
+        function toggleDepositPanel() {
+            const panel = document.getElementById('deposit-panel');
+            if (!panel) return;
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function selectAmount(amt, btn) {
+            selectedDepositAmt = amt;
+            document.querySelectorAll('.amt-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            document.getElementById('pay-btn-box').style.display = 'block';
+            document.getElementById('btn-amt-val').innerText = amt;
+        }
+
+        async function openPaymentScreen() {
+            let couponInput = document.getElementById('player-coupon-input').value.trim().toUpperCase();
+            appliedBonusAmt = 0;
+            if (couponInput) {
+                let snap = await db.collection("coupons").doc(couponInput).get();
+                if (snap.exists) {
+                    appliedBonusAmt = Math.round(selectedDepositAmt * Number(snap.data().percent || 0) / 100 * 100) / 100;
+                    document.getElementById('coupon-applied-txt').innerText = `Promo Code Applied! Extra Bonus: ₹${appliedBonusAmt} (${snap.data().percent || 0}%)`;
+                    document.getElementById('coupon-applied-txt').style.display = 'block';
+                } else { showModal("Invalid or expired coupon code!"); return; }
+            } else {
+                document.getElementById('coupon-applied-txt').style.display = 'none';
+            }
+            let totalPayAmt = selectedDepositAmt + appliedBonusAmt;
+            document.getElementById('screen-amt').innerText = `${selectedDepositAmt} (Total Credited: ₹${totalPayAmt})`;
+            document.getElementById('pay-screen').style.display = 'block';
+        }
+
+        function closePaymentScreen() { document.getElementById('pay-screen').style.display = 'none'; }
+        function openWithdrawScreen() { document.getElementById('withdraw-screen').style.display = 'block'; }
+        function closeWithdrawScreen() { document.getElementById('withdraw-screen').style.display = 'none'; }
+
+        async function submitWithdrawalRequest() {
+            let m = document.getElementById('withdraw-method').value;
+            let amt = Number(document.getElementById('w-amount').value);
+            if (isNaN(amt) || amt <= 0) { showModal("Please enter a valid amount!"); return; }
+            if (currentLoggedInUser.data.wallet < amt) { showModal("Insufficient wallet balance!"); return; }
+
+            let details;
+            if (m === 'upi') {
+                const upi = document.getElementById('w-upi-id').value.trim();
+                if (!upi) { showModal('Please enter your UPI ID!'); return; }
+                details = `UPI ID: ${upi}`;
+            } else {
+                const accName = document.getElementById('w-acc-name').value.trim();
+                const accNum = document.getElementById('w-acc-num').value.trim();
+                const accConfirm = document.getElementById('w-acc-num-confirm').value.trim();
+                const ifsc = document.getElementById('w-ifsc').value.trim();
+                if (!accName || !accNum || !accConfirm || !ifsc) { showModal('Please fill all bank details!'); return; }
+                if (accNum !== accConfirm) { showModal('Account numbers do not match!'); return; }
+                details = `Bank A/C Holder: ${accName}\nAccount Number: ${accNum}\nIFSC: ${ifsc}`;
+            }
+            let p = currentLoggedInUser.data;
+            p.wallet -= amt;
+            if(!p.txLogs) p.txLogs = [];
+            let dateTimeNow = new Date().toLocaleString();
+
+            const historyRef = db.collection('withdrawalHistory').doc();
+            p.txLogs.push({ amount: amt, utr: `WITHDRAW-${Math.floor(Math.random()*10000)}`, status: 'PENDING', time: dateTimeNow, historyId: historyRef.id });
+
+            await db.collection("players").doc(p.id).update({ wallet: p.wallet, txLogs: p.txLogs });
+            await historyRef.set({ playerName:p.name, playerUid:p.uid, playerId:p.id, amount:amt, methodDetails:details, time:dateTimeNow, status:'PENDING' });
+            await db.collection("pendingWithdrawals").add({ playerName: p.name, playerUid: p.uid, playerId: p.id, amount: amt, methodDetails: details, time: dateTimeNow, historyId: historyRef.id });
+
+            closeWithdrawScreen();
+            showModal("Withdrawal request submitted successfully!");
+            updatePlayerUI();
+        }
+
+        async function submitUTR() {
+            let utr = document.getElementById('utr-input').value.trim();
+            if (!utr) { showModal("Please enter UTR number!"); return; }
+            let totalCreditingAmt = selectedDepositAmt + appliedBonusAmt;
+            let dateTimeNow = new Date().toLocaleString();
+
+            let req = {
+                playerName: currentLoggedInUser.data.name,
+                playerUid: currentLoggedInUser.data.uid,
+                amount: totalCreditingAmt,
+                utr: utr,
+                playerId: currentLoggedInUser.data.id,
+                time: dateTimeNow
+            };
+
+            await db.collection("pendingUTRs").add(req);
+            let player = currentLoggedInUser.data;
+            if (!player.txLogs) player.txLogs = [];
+            player.txLogs.push({ amount: totalCreditingAmt, utr: utr, status: 'PENDING', time: dateTimeNow });
+            await db.collection("players").doc(player.id).update({ txLogs: player.txLogs });
+
+            closePaymentScreen();
+            showModal("Payment submitted for admin approval!");
+            document.getElementById('utr-input').value = "";
+            document.getElementById('player-coupon-input').value = "";
+            document.getElementById('pay-btn-box').style.display = 'none';
+            const depositPanel = document.getElementById('deposit-panel');
+            if (depositPanel) depositPanel.style.display = 'none';
+            document.querySelectorAll('.amt-btn').forEach(b => b.classList.remove('selected'));
+            updatePlayerUI();
+        }
+
+        function renderPendingUTRs() {
+            let container = document.getElementById('pending-utr-list');
+            if (!container) return;
+            if (pendingUTRs.length === 0) { container.innerHTML = `<p style="color: #9ca3af; font-size: 14px;">No pending requests.</p>`; return; }
+            let html = '';
+            pendingUTRs.forEach((req) => {
+                html += `<div style="background:#111827; padding:15px; border-radius:8px; margin-bottom:10px;"><p style="color:#38bdf8;font-weight:bold;">${req.playerName} - ₹${req.amount} (UTR: ${req.utr})</p><div style="display:flex;gap:8px;margin-top:8px;"><button class="btn" style="background:#10b981;color:#fff;margin:0;" onclick="approveUTR('${req.docId}')">Approve</button><button class="btn" style="background:#ef4444;color:#fff;margin:0;" onclick="rejectUTR('${req.docId}')">Reject</button></div></div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        async function approveUTR(docId) {
+            let reqDoc = pendingUTRs.find(x => x.docId === docId);
+            if (!reqDoc) return;
+            let playerRef = db.collection("players").doc(reqDoc.playerId);
+            let playerSnap = await playerRef.get();
+            if (playerSnap.exists) {
+                let pData = playerSnap.data();
+                let logs = pData.txLogs || [];
+                let log = logs.find(l => l.utr === reqDoc.utr && l.status === 'PENDING');
+                if (log) log.status = 'SUCCESS';
+                await playerRef.update({ wallet: pData.wallet + reqDoc.amount, txLogs: logs });
+            }
+            await db.collection("pendingUTRs").doc(docId).delete();
+            showModal("Payment approved successfully!");
+        }
+
+        async function renderFullHistory() {
+            let container = document.getElementById('full-history-container');
+            let logs = currentLoggedInUser.data.txLogs || [];
+            if (logs.length === 0) { container.innerHTML = `<p style="color: #9ca3af; text-align: center;">No history available.</p>`; return; }
+            let html = '';
+            logs.slice().reverse().forEach(l => {
+                html += `<div class="history-row success" style="padding: 10px; margin-bottom: 6px; display:flex; justify-content:space-between; border-radius:6px;"><span>₹${l.amount}</span><span>${l.utr}</span><span><b>${l.status}</b></span></div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function switchPlayerTab(index) {
+            document.querySelectorAll('.player-tab').forEach((t, i) => { t.style.display = i === index ? 'block' : 'none'; });
+            document.querySelectorAll('nav .nav-item').forEach((item, i) => { if(i === index) item.classList.add('active'); else item.classList.remove('active'); });
+        }
+
+        function updatePlayerUI() {
+            let p = currentLoggedInUser.data;
+            document.getElementById('header-balance').innerText = p.wallet;
+            document.getElementById('wallet-balance-num').innerText = p.wallet;
+            document.getElementById('profile-name-txt').innerText = p.name;
+            document.getElementById('profile-uid-txt').innerText = p.uid;
+            renderMyMatches();
+        }
+
+        function startLiveCountdown() { setInterval(() => { renderPlayerTournaments(); }, 1000); }
+
+        function renderPlayerTournaments() {
+            let container = document.getElementById('player-tournaments-list');
+            if (!container) return;
+            const homeTournaments = tournaments.filter(t => t.hiddenFromHome !== true);
+            if (homeTournaments.length === 0) { container.innerHTML = `<p style="color: #9ca3af; text-align: center; margin-top: 30px;">No tournaments available.</p>`; return; }
+            let html = '';
+            homeTournaments.forEach((t, index) => {
+                let timeLeft = t.time - Date.now();
+                let isLive = timeLeft <= 0;
+                let timeText = isLive ? "🔴 Live" : formatTimeLeft(timeLeft);
+                let isFinished = t.status === "Finished";
+                let playerMatches = (currentLoggedInUser && currentLoggedInUser.role === 'player' && currentLoggedInUser.data) ? (currentLoggedInUser.data.matches || []) : [];
+                let hasJoined = playerMatches.some(m => String(m.id || m.tid || '') === String(t.id));
+                let joinedCount = Number(t.joinedCount || 0);
+                let maxPlayers = Number(t.maxPlayers || 0);
+                let isFull = maxPlayers > 0 && joinedCount >= maxPlayers;
+                let actionBtn = isFinished ? `<button class="btn" style="background:#3b82f6; color:#fff; margin-top:0; padding:8px;" onclick="viewTournamentRewards('${t.id}')">Winners</button>` : (hasJoined ? `<div style="width:100%; padding:10px 8px; border-radius:8px; background:#10b98122; border:1px solid #10b981; color:#10b981; font-weight:800; text-align:center; font-size:13px;">✅ JOINED — ${isLive ? '🔴 Live' : '⏳ '+timeText}</div>` : (isFull ? `<div style="width:100%; padding:10px 8px; border-radius:8px; background:#ef444422; border:1px solid #ef4444; color:#ef4444; font-weight:900; text-align:center; font-size:13px;">🚫 FULL — ${joinedCount}/${maxPlayers} Players</div>` : (!isLive ? `<button class="btn" style="background:#10b981; color:#000; margin-top:0; padding:8px;" onclick="joinTournament('${t.id}', ${t.fee}, '${t.name.replace(/'/g, "\'")}')">Join</button>` : `<span style="color:#ef4444; font-weight:bold;">Live</span>`)));
+
+                html += `<div style="background:#111827; border-radius:12px; margin-bottom:15px; padding:15px; border:1px solid #1f2937;">
+                    <div style="color:#38bdf8; font-weight:bold;">Tournament #${index + 1} - ${t.name} (${t.type})</div>
+                    <div style="color:#f59e0b; margin:6px 0;">🏆 Prize Pool: ₹${t.prize} | 🎟️ Entry Fee: ₹${t.fee || 0} | 👥 Players: ${joinedCount}${maxPlayers > 0 ? '/'+maxPlayers : ''} | Timer: ${timeText}</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+                        <button class="btn" style="background:#f59e0b; color:#000; margin-top:0; padding:8px 12px; width:48%; font-size:13px;" onclick="viewTournamentRewards('${t.id}')">🎁 Rewards</button>
+                        <div style="width:48%; text-align:right;">${actionBtn}</div>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function viewTournamentRewards(tid) {
+            let t = tournaments.find(x => x.id === tid);
+            if (!t) return;
+            let container = document.getElementById('rewards-list-container');
+            if (t.rewards) {
+                let r = t.rewards;
+                document.getElementById('rewards-modal-title').innerText = "Tournament Rewards (1st to 10th)";
+                const winners = t.winners || [];
+                const winnerText = winners.length
+                    ? winners.map(w => `<div style="background:#064e3b22;border:1px solid #10b981;padding:10px;margin-bottom:6px;border-radius:6px;">🏆 Rank ${w.rank} — ${w.playerName} (UID: ${w.playerUid}) | ₹${w.prize || 0}</div>`).join('')
+                    : '<p style="color:#9ca3af;font-size:13px;">Winners will be announced after the match.</p>';
+                container.innerHTML = `
+                    <div style="color:#38bdf8;font-weight:800;margin-bottom:8px;">Reward Structure</div>
+                    <div style="background:#0b0f19; padding:10px; margin-bottom:6px; border-radius:6px;">1st Place: ₹${r.rew1 || 0}</div>
+                    <div style="background:#0b0f19; padding:10px; margin-bottom:6px; border-radius:6px;">2nd Place: ₹${r.rew2 || 0}</div>
+                    <div style="background:#0b0f19; padding:10px; margin-bottom:6px; border-radius:6px;">3rd Place: ₹${r.rew3 || 0}</div>
+                    <div style="background:#0b0f19; padding:10px; margin-bottom:6px; border-radius:6px;">4th Place: ₹${r.rew4 || 0}</div>
+                    <div style="background:#0b0f19; padding:10px; margin-bottom:6px; border-radius:6px;">5th Place: ₹${r.rew5 || 0}</div>
+                    <div style="background:#0b0f19; padding:10px; margin-bottom:6px; border-radius:6px;">6th-10th Place (Each): ₹${r.rew6to10 || 0}</div>
+                    <div style="color:#f59e0b;font-weight:800;margin:14px 0 8px;">🏆 Winners</div>
+                    ${winnerText}
+                `;
+            }
+            document.getElementById('rewards-screen').style.display = 'block';
+        }
+
+        function formatTimeLeft(ms) {
+            let seconds = Math.floor((ms / 1000) % 60);
+            let minutes = Math.floor((ms / (1000 * 60)) % 60);
+            let hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
+            let days = Math.floor(ms / (1000 * 60 * 60 * 24));
+            return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+        }
+
+        async function joinTournament(tid, fee, tName) {
+            let p = currentLoggedInUser.data;
+            if (!p) return;
+            if (!p.matches) p.matches = [];
+            let alreadyJoined = p.matches.some(m => String(m.id || m.tid || '') === String(tid));
+            if (alreadyJoined) {
+                showModal("You have already joined this tournament!");
+                renderPlayerTournaments();
+                return;
+            }
+            if (p.wallet < fee) { showModal("Insufficient wallet balance!"); switchPlayerTab(2); return; }
+
+            showCustomConfirm(`Join ${tName} for ₹${fee}?`, async function() {
+                try {
+                    const result = await db.runTransaction(async function(transaction) {
+                        const playerRef = db.collection("players").doc(p.id);
+                        const tournamentRef = db.collection("tournaments").doc(tid);
+                        const playerSnap = await transaction.get(playerRef);
+                        const tournamentSnap = await transaction.get(tournamentRef);
+                        if (!playerSnap.exists) throw new Error("PLAYER_NOT_FOUND");
+                        if (!tournamentSnap.exists) throw new Error("TOURNAMENT_NOT_FOUND");
+
+                        const latest = playerSnap.data();
+                        const latestMatches = latest.matches || [];
+                        if (latestMatches.some(m => String(m.id || m.tid || '') === String(tid))) throw new Error("ALREADY_JOINED");
+                        if (Number(latest.wallet || 0) < Number(fee || 0)) throw new Error("INSUFFICIENT_BALANCE");
+
+                        const tournament = { id: tournamentSnap.id, ...tournamentSnap.data() };
+                        const maxPlayers = Number(tournament.maxPlayers || 0);
+                        const joinedCount = Number(tournament.joinedCount || 0);
+                        if (maxPlayers > 0 && joinedCount >= maxPlayers) throw new Error("TOURNAMENT_FULL");
+
+                        latestMatches.push(tournament);
+                        const newWallet = Number(latest.wallet || 0) - Number(fee || 0);
+                        transaction.update(playerRef, { wallet: newWallet, matches: latestMatches });
+                        transaction.update(tournamentRef, { joinedCount: joinedCount + 1 });
+                        return { latest, newWallet, tournament, newJoinedCount: joinedCount + 1 };
+                    });
+
+                    result.latest.wallet = result.newWallet;
+                    result.latest.matches = result.latest.matches || [];
+                    currentLoggedInUser.data = result.latest;
+                    updatePlayerUI();
+                    renderPlayerTournaments();
+                    showModal("Registered successfully!");
+                } catch (err) {
+                    if (err && err.message === "TOURNAMENT_FULL") {
+                        renderPlayerTournaments();
+                        showModal("This tournament is full!");
+                    } else if (err && err.message === "ALREADY_JOINED") {
+                        showModal("You have already joined this tournament!");
+                        renderPlayerTournaments();
+                    } else if (err && err.message === "INSUFFICIENT_BALANCE") {
+                        showModal("Insufficient wallet balance!");
+                        switchPlayerTab(2);
+                    } else if (err && err.message === "PLAYER_NOT_FOUND") {
+                        showModal("Player account not found!");
+                    } else if (err && err.message === "TOURNAMENT_NOT_FOUND") {
+                        showModal("Tournament not found!");
+                    } else {
+                        console.error(err);
+                        showModal("Could not join tournament. Please try again.");
+                    }
+                }
+            });
+        }
+
+        function renderMyMatches() {
+            let p = currentLoggedInUser.data;
+            let container = document.getElementById('my-matches-list');
+            if (!container) return;
+            if (!p.matches || p.matches.length === 0) { container.innerHTML = `<p style="color:#9ca3af;text-align:center;margin-top:30px;">No matches joined.</p>`; return; }
+            let html = '';
+            p.matches.forEach(m => {
+                const latest = tournaments.find(t => String(t.id) === String(m.id || m.tid)) || m;
+                const status = latest.status || 'Scheduled';
+                const hasRoomDetails = String(latest.roomId || '').trim() && String(latest.roomPass || '').trim();
+                let roomDisplay = status === 'Finished' ? `<b style="color:#f59e0b;">🏁 FINISHED</b>` : status === 'Running' ? `<b style="color:#ef4444;">🔴 LIVE</b>` : hasRoomDetails ? `ID: <b>${latest.roomId}</b> | Pass: <b>${latest.roomPass}</b>` : `<b>Coming Soon</b>`;
+                let winner = (latest.winners || []).find(w => String(w.playerId) === String(p.id));
+                let prizeAction = '';
+                if (status === 'Finished' && winner) {
+                    const claimStatus = winner.claimStatus || 'available';
+                    if (claimStatus === 'approved') prizeAction = `<div style="margin-top:10px;padding:10px;border-radius:8px;background:#064e3b;color:#10b981;font-weight:800;text-align:center;">✅ Prize Approved — ₹${winner.prize || 0} Added</div>`;
+                    else if (claimStatus === 'checking') prizeAction = `<div style="margin-top:10px;padding:10px;border-radius:8px;background:#78350f;color:#fbbf24;font-weight:800;text-align:center;">🔍 Checking</div>`;
+                    else if (claimStatus === 'rejected') prizeAction = `<button class="btn" style="background:#ef4444;color:#fff;margin-top:10px;" onclick="openPrizeUploadScreen('${latest.id}')">🔄 Upload Again</button>`;
+                    else prizeAction = `<button class="btn" style="background:#f59e0b;color:#000;margin-top:10px;" onclick="openPrizeUploadScreen('${latest.id}')">🎁 Collect Prize — ₹${winner.prize || 0}</button>`;
+                }
+                html += `<div style="background:#111827;padding:15px;border-radius:12px;margin-bottom:12px;border:1px solid #1f2937;"><div style="color:#38bdf8;font-weight:bold;">${latest.name || m.name}</div><div style="color:#10b981;font-size:13px;margin-top:4px;">🔑 Room Details: ${roomDisplay}</div>${prizeAction}</div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        let activePrizeTournamentId = null;
+        let activePrizeWinner = null;
+        let activePrizeImageData = null;
+
+        function openPrizeUploadScreen(tid) {
+            const t = tournaments.find(x => String(x.id) === String(tid));
+            const p = currentLoggedInUser && currentLoggedInUser.data;
+            if (!t || !p) return;
+            const winner = (t.winners || []).find(w => String(w.playerId) === String(p.id));
+            if (!winner) { showModal('You are not listed as a winner for this match.'); return; }
+            activePrizeTournamentId = tid; activePrizeWinner = winner; activePrizeImageData = null;
+            document.getElementById('prize-upload-match').innerText = t.name || 'Match';
+            document.getElementById('prize-upload-rank').innerText = `🏆 ${winner.rank}${winner.rank===1?'st':winner.rank===2?'nd':winner.rank===3?'rd':'th'} Place • Reward ₹${winner.prize || 0}`;
+            document.getElementById('victory-screenshot-input').value = '';
+            document.getElementById('victory-screenshot-preview').style.display='none';
+            document.getElementById('submit-victory-proof-btn').style.display='none';
+            document.getElementById('prize-upload-screen').style.display='block';
+        }
+        function closePrizeUploadScreen(){ document.getElementById('prize-upload-screen').style.display='none'; activePrizeTournamentId=null; activePrizeWinner=null; activePrizeImageData=null; }
+        function previewVictoryScreenshot(e){
+            const file=e.target.files && e.target.files[0]; if(!file) return;
+            if(!file.type.startsWith('image/')) { showModal('Please select an image screenshot.'); return; }
+            const img=new Image(); const reader=new FileReader();
+            reader.onload=()=>{ img.onload=()=>{ const max=900; let w=img.width,h=img.height; if(Math.max(w,h)>max){const k=max/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k);} const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h); activePrizeImageData=c.toDataURL('image/jpeg',0.65); const pv=document.getElementById('victory-screenshot-preview');pv.src=activePrizeImageData;pv.style.display='block';document.getElementById('submit-victory-proof-btn').style.display='block'; }; img.src=reader.result;}; reader.readAsDataURL(file);
+        }
+        async function submitVictoryProof(){
+            if(!activePrizeTournamentId || !activePrizeWinner || !activePrizeImageData) { showModal('Please choose a screenshot first.'); return; }
+            const p=currentLoggedInUser.data; const claimId=`${activePrizeTournamentId}_${p.id}`;
+            try{
+                await db.collection('prizeClaims').doc(claimId).set({tournamentId:activePrizeTournamentId,playerId:p.id,playerName:p.name||'',playerUid:p.uid||'',matchName:(tournaments.find(t=>t.id===activePrizeTournamentId)||{}).name||'',rank:activePrizeWinner.rank,prize:Number(activePrizeWinner.prize||0),screenshotData:activePrizeImageData,status:'checking',submittedAt:Date.now(),rejectionReason:''},{merge:true});
+                const t=tournaments.find(x=>String(x.id)===String(activePrizeTournamentId));
+                if(t){ t.winners=(t.winners||[]).map(w=>String(w.playerId)===String(p.id)?{...w,claimStatus:'checking'}:w); }
+                await db.collection('tournaments').doc(activePrizeTournamentId).update({winners:t.winners});
+                closePrizeUploadScreen(); renderMyMatches(); showModal('Screenshot submitted. Status: Checking.');
+            }catch(err){ console.error(err); showModal('Screenshot submit failed. Please try again.'); }
+        }
+        async function renderPrizeVerification(){
+            const c=document.getElementById('prize-checking-list'); if(!c) return; c.innerHTML='<p style="color:#9ca3af;text-align:center;">Loading...</p>';
+            const snap=await db.collection('prizeClaims').where('status','==','checking').get(); let arr=[]; snap.forEach(d=>arr.push({id:d.id,...d.data()}));
+            if(!arr.length){c.innerHTML='<p style="color:#9ca3af;text-align:center;">No screenshots waiting for checking.</p>';return;}
+            c.innerHTML=arr.map(x=>`<div style="background:#111827;border:1px solid #374151;border-radius:12px;padding:14px;margin-bottom:12px;"><b style="color:#38bdf8;">${x.playerName}</b><div style="color:#9ca3af;font-size:12px;">UID: ${x.playerUid} • ${x.matchName}</div><div style="color:#f59e0b;margin:6px 0;">Rank ${x.rank} • ₹${x.prize}</div><img src="${x.screenshotData}" style="width:100%;max-height:360px;object-fit:contain;border-radius:8px;background:#000;"><div style="display:flex;gap:8px;margin-top:10px;"><button class="btn" style="background:#10b981;color:#fff;margin:0;" onclick="approvePrizeClaim('${x.id}')">✅ Approve Prize</button><button class="btn" style="background:#ef4444;color:#fff;margin:0;" onclick="rejectPrizeClaim('${x.id}')">❌ Reject</button></div></div>`).join('');
+        }
+        async function approvePrizeClaim(id){
+            const ref=db.collection('prizeClaims').doc(id); const snap=await ref.get(); if(!snap.exists)return; const x=snap.data(); if(x.status!=='checking'){showModal('This claim is already processed.');return;}
+            const pRef=db.collection('players').doc(x.playerId); const pSnap=await pRef.get(); if(!pSnap.exists){showModal('Player account not found.');return;} const p=pSnap.data();
+            await db.runTransaction(async tx=>{ const fresh=await tx.get(ref); if(!fresh.exists || fresh.data().status!=='checking') return; const freshP=await tx.get(pRef); const pp=freshP.data(); const logs=pp.txLogs||[]; logs.push({amount:Number(x.prize||0),utr:'PRIZE-'+x.tournamentId+'-'+x.rank,status:'SUCCESS',time:Date.now(),type:'PRIZE'}); tx.update(pRef,{wallet:Number(pp.wallet||0)+Number(x.prize||0),txLogs:logs}); tx.update(ref,{status:'approved',approvedAt:Date.now()}); });
+            const t=tournaments.find(t=>String(t.id)===String(x.tournamentId)); if(t){t.winners=(t.winners||[]).map(w=>String(w.playerId)===String(x.playerId)?{...w,claimStatus:'approved'}:w);await db.collection('tournaments').doc(x.tournamentId).update({winners:t.winners});}
+            renderPrizeVerification(); showModal('Prize approved and added to player wallet.');
+        }
+        async function rejectPrizeClaim(id){
+            const reason=prompt('Reason for rejection (optional):')||'Screenshot not accepted.'; const ref=db.collection('prizeClaims').doc(id); const snap=await ref.get(); if(!snap.exists)return; const x=snap.data(); if(x.status!=='checking'){showModal('This claim is already processed.');return;} await ref.update({status:'rejected',rejectionReason:reason,rejectedAt:Date.now()}); const t=tournaments.find(t=>String(t.id)===String(x.tournamentId)); if(t){t.winners=(t.winners||[]).map(w=>String(w.playerId)===String(x.playerId)?{...w,claimStatus:'rejected'}:w);await db.collection('tournaments').doc(x.tournamentId).update({winners:t.winners});} renderPrizeVerification(); showModal('Proof rejected. Player can upload again.');
+        }
+    </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"480c9d8468c44ad3bed3c74fbcc6d6f3","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
